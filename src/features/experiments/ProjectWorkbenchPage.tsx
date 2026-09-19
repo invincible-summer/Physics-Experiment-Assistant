@@ -19,6 +19,7 @@ import { Panel, Modal, CopyButton, Badge, toast } from '../../components/ui';
 import { Tex } from '../../components/katex';
 import { buildDataProcessingMarkdown, buildResultLatex, tableToCSV, serializeProject } from '../../export';
 import { ForcedPlotsBlock, QuasiDiagnosticsBlock, MichelsonChecklistBlock } from './custom-blocks';
+import { Icon } from '../../components/Icon';
 
 export function ProjectWorkbenchPage() {
   const { projectId } = useParams();
@@ -28,7 +29,7 @@ export function ProjectWorkbenchPage() {
   const [project, setProject] = useState<StoredProject | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 961px)').matches);
   const [exportOpen, setExportOpen] = useState(false);
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
   const saveTimer = useRef<number | undefined>(undefined);
@@ -324,17 +325,17 @@ export function ProjectWorkbenchPage() {
     <AppShell
       topbar={
         <>
-          <button className="btn btn-sm" onClick={() => navigate('/projects')}>←</button>
+          <button className="btn btn-sm btn-icon btn-quiet" onClick={() => navigate('/projects')} aria-label="返回项目列表"><Icon name="arrowLeft" size={17} /></button>
           <span className="title">{project.title}</span>
           <Badge variant="default">{experiment.title}</Badge>
           <StandardProfileBadge />
-          <span className="save-dot" style={{ marginLeft: 8 }} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'} />
-          <button className="btn btn-sm" onClick={() => setInspectorOpen((v) => !v)}>{inspectorOpen ? '收起检查器' : '展开检查器'}</button>
-          <button className="btn btn-sm btn-primary" onClick={() => setExportOpen(true)}>导出</button>
+          <span className={`save-status ${saveState}`} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'}><span className={`save-dot ${saveState}`} />{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中' : '保存失败'}</span>
+          <button className="btn btn-sm btn-quiet" onClick={() => setInspectorOpen((v) => !v)} aria-expanded={inspectorOpen}><Icon name="panelRight" size={16} />{inspectorOpen ? '收起结果' : '结果检查'}</button>
+          <button className="btn btn-sm btn-primary" onClick={() => setExportOpen(true)}><Icon name="download" size={16} />导出</button>
         </>
       }
     >
-      <div className={inspectorOpen ? '' : 'inspector-collapsed'}>
+      <div className={inspectorOpen ? 'inspector-drawer-open' : 'inspector-collapsed'}>
         <div className="workbench">
           <nav className="workbench-steps" aria-label="实验步骤">
             {experiment.steps.map((s, i) => (
