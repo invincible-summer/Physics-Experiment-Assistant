@@ -3,9 +3,45 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { listProjects, StoredProject } from '../../persistence/db';
 import { getExperiment } from '../../experiments';
+import { tryGetProfile } from '../../standards/registry';
 import { useSettings } from '../../stores/settings';
 import { Panel, Badge } from '../../components/ui';
 import { StandardProfileBadge } from '../../components/StandardProfileBadge';
+import { Icon, IconName } from '../../components/Icon';
+
+const QUICK_ACTIONS: {
+  to: string;
+  icon: IconName;
+  title: string;
+  detail: string;
+  primary?: boolean;
+}[] = [
+  {
+    to: '/experiments',
+    icon: 'experiment',
+    title: '新建 2026 A(1) 实验',
+    detail: '7 个必做实验，从原始数据到最终结果',
+    primary: true,
+  },
+  {
+    to: '/tools/statistics',
+    icon: 'chart',
+    title: '快速数据处理',
+    detail: '统计、拟合、加权平均与不确定度',
+  },
+  {
+    to: '/formulas',
+    icon: 'formula',
+    title: '公式计算',
+    detail: '选公式、填物理量与单位、自动传播不确定度',
+  },
+  {
+    to: '/tools/calculator',
+    icon: 'calculator',
+    title: '科学计算器',
+    detail: '安全 AST 求值，支持度与弧度',
+  },
+];
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -17,75 +53,137 @@ export function HomePage() {
   }, []);
 
   return (
-    <main className="page">
-      <div className="home-hero">
-        <h1>物理实验小助手</h1>
-        <p className="muted">
-          数据记录 → 清洗修正 → 派生计算 → 拟合作图 → 不确定度 → 有效数字 → 可复制报告片段。
-          全部计算在本浏览器内完成，数据不上传。
-        </p>
-        <div className="row" style={{ marginTop: 10 }}>
-          <StandardProfileBadge />
-          <Badge variant="default">规则可追溯</Badge>
-          <Badge variant="default">课程与 GB/T 严格隔离</Badge>
-        </div>
-        {profile.kind === 'custom' && (
-          <div className="notice notice-warning" style={{ marginTop: 10 }}>
-            <span className="n-icon">⚠</span><div className="n-body">当前为自定义规则，不代表课程或 GB/T 标准。</div>
+    <main className="page home-page">
+      <section className="home-hero" aria-labelledby="home-title">
+        <div className="home-hero-copy">
+          <div className="eyebrow"><Icon name="spark" size={15} /> 课程数据处理工作台</div>
+          <h1 id="home-title">物理实验小助手</h1>
+          <p className="hero-lead">
+            从原始数据、拟合与作图，到不确定度和有效数字。
+            每一步保留计算链，结果可以直接复核。
+          </p>
+          <div className="hero-actions">
+            <Link className="btn btn-primary btn-lg" to="/experiments">
+              开始实验 <Icon name="arrowRight" size={17} />
+            </Link>
+            <Link className="btn btn-hero-secondary btn-lg" to="/tools/statistics">
+              快速处理数据
+            </Link>
           </div>
-        )}
-      </div>
+          <div className="hero-meta">
+            <StandardProfileBadge />
+            <span><Icon name="shield" size={14} /> 本地保存，不上传实验数据</span>
+          </div>
+          {profile.kind === 'custom' && (
+            <div className="notice notice-warning hero-warning">
+              <span className="n-icon">⚠</span>
+              <div className="n-body">当前为自定义规则，不代表课程或 GB/T 标准。</div>
+            </div>
+          )}
+        </div>
 
-      <div className="quick-grid" style={{ marginBottom: 16 }}>
-        <Link className="quick-card" to="/experiments">
-          <span className="q-icon">🔬</span>
-          <span className="q-title">新建 2026 A(1) 实验</span>
-          <span className="small muted">7 个必做实验：摩擦 · 霍尔 · 热导 · 阻尼 · 声速 · 透镜 · 迈克尔逊</span>
-        </Link>
-        <Link className="quick-card" to="/tools/statistics">
-          <span className="q-icon">📊</span>
-          <span className="q-title">快速数据处理</span>
-          <span className="small muted">统计 · 拟合 · 加权平均 · 不确定度传播</span>
-        </Link>
-        <Link className="quick-card" to="/formulas">
-          <span className="q-icon">ƒ</span>
-          <span className="q-title">公式计算</span>
-          <span className="small muted">选公式 → 填量与单位 → 求目标量 → 带不确定度</span>
-        </Link>
-        <Link className="quick-card" to="/tools/calculator">
-          <span className="q-icon">🧮</span>
-          <span className="q-title">科学计算器</span>
-          <span className="small muted">安全 AST 求值 · 角度/弧度</span>
-        </Link>
-      </div>
+        <div className="hero-workflow" aria-label="实验数据处理流程">
+          <div className="workflow-head">
+            <span>DATA PIPELINE</span>
+            <span className="workflow-status"><i /> READY</span>
+          </div>
+          <div className="workflow-formula">
+            <span className="workflow-symbol">x̄ ± Δ</span>
+            <span className="workflow-caption">可追溯结果表达</span>
+          </div>
+          <div className="workflow-steps">
+            <div><b>01</b><span>记录</span><small>raw data</small></div>
+            <div><b>02</b><span>拟合</span><small>fit & plot</small></div>
+            <div><b>03</b><span>评定</span><small>uncertainty</small></div>
+          </div>
+        </div>
+      </section>
 
-      <Panel title="当前标准规则摘要" sub={profile.name} actions={<Link to="/settings" className="btn btn-sm">切换标准</Link>}>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          {profile.rulesSummary.slice(0, 6).map((r, i) => <li key={i} className="small">{r}</li>)}
-        </ul>
-      </Panel>
+      <section className="quick-grid" aria-label="常用入口">
+        {QUICK_ACTIONS.map((action) => (
+          <Link
+            key={action.to}
+            className={`quick-card${action.primary ? ' quick-card-primary' : ''}`}
+            to={action.to}
+          >
+            <span className="q-icon" aria-hidden><Icon name={action.icon} size={21} /></span>
+            <span className="q-copy">
+              <span className="q-title">{action.title}</span>
+              <span className="q-detail">{action.detail}</span>
+            </span>
+            <Icon className="q-arrow" name="arrowRight" size={18} />
+          </Link>
+        ))}
+      </section>
 
-      <Panel title="最近项目" actions={<Link to="/projects" className="btn btn-sm">全部项目</Link>}>
-        {recent.length === 0 ? (
-          <div className="empty-state"><div className="e-icon">🗂</div><div>还没有项目——从"新建实验"开始</div></div>
-        ) : (
-          <table className="contrib-table">
-            <tbody>
-              {recent.map((p) => {
-                const exp = p.experimentId ? getExperiment(p.experimentId) : undefined;
+      <section className="home-content-grid">
+        <Panel
+          title="当前标准规则摘要"
+          sub={profile.name}
+          actions={<Link to="/settings" className="btn btn-sm btn-quiet">切换标准</Link>}
+        >
+          <div className="rule-list">
+            {profile.rulesSummary.slice(0, 6).map((rule, i) => (
+              <div className="rule-row" key={i}>
+                <span className="rule-index">{String(i + 1).padStart(2, '0')}</span>
+                <span>{rule}</span>
+              </div>
+            ))}
+          </div>
+          <div className="panel-footnote">
+            <Badge variant="default">规则可追溯</Badge>
+            <Badge variant="default">课程 / GB/T 隔离</Badge>
+          </div>
+        </Panel>
+
+        <Panel
+          title="最近项目"
+          sub={recent.length > 0 ? `${recent.length} 个最近记录` : '本浏览器'}
+          actions={<Link to="/projects" className="btn btn-sm btn-quiet">全部项目</Link>}
+        >
+          {recent.length === 0 ? (
+            <div className="empty-state compact">
+              <div className="empty-icon"><Icon name="projects" size={24} /></div>
+              <div>还没有项目</div>
+              <div className="small muted">从“新建实验”开始，数据会自动保存在本浏览器。</div>
+            </div>
+          ) : (
+            <div className="recent-list">
+              {recent.map((project) => {
+                const experiment = project.experimentId ? getExperiment(project.experimentId) : undefined;
+                const projectProfile = tryGetProfile(project.standardProfileId);
                 return (
-                  <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/project/${p.id}`)}>
-                    <td><strong>{p.title}</strong></td>
-                    <td className="muted small">{exp?.title ?? '通用'}</td>
-                    <td className="muted small">{new Date(p.updatedAt).toLocaleString('zh-CN')}</td>
-                    <td className="num small">{p.standardProfileId}</td>
-                  </tr>
+                  <button
+                    key={project.id}
+                    className="recent-item"
+                    onClick={() => navigate(`/project/${project.id}`)}
+                  >
+                    <span className="recent-icon" aria-hidden><Icon name="experiment" size={18} /></span>
+                    <span className="recent-copy">
+                      <strong>{project.title}</strong>
+                      <small>{experiment?.title ?? '通用项目'} · {projectProfile?.shortName ?? project.standardProfileId}</small>
+                    </span>
+                    <span className="recent-time">{formatRelativeDate(project.updatedAt)}</span>
+                    <Icon className="recent-arrow" name="arrowRight" size={16} />
+                  </button>
                 );
               })}
-            </tbody>
-          </table>
-        )}
-      </Panel>
+            </div>
+          )}
+        </Panel>
+      </section>
     </main>
   );
+}
+
+function formatRelativeDate(iso: string): string {
+  const time = new Date(iso).getTime();
+  const diff = Date.now() - time;
+  const minute = 60_000;
+  const day = 24 * 60 * minute;
+  if (diff >= 0 && diff < minute) return '刚刚';
+  if (diff >= 0 && diff < 60 * minute) return `${Math.max(1, Math.floor(diff / minute))} 分钟前`;
+  if (diff >= 0 && diff < day) return `${Math.floor(diff / (60 * minute))} 小时前`;
+  if (diff >= 0 && diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+  return new Date(iso).toLocaleDateString('zh-CN');
 }
