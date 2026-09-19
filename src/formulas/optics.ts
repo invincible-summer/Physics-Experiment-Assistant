@@ -1,0 +1,130 @@
+/** 光学公式（plan §20 光学族） */
+import { F, FormulaDefinition } from './types';
+
+const DOC = '2026秋物理实验A(1)教学资料';
+
+export const OPTICS_FORMULAS: FormulaDefinition[] = [
+  F({
+    id: 'thin-lens',
+    title: '薄透镜成像公式',
+    category: 'optics',
+    latex: '\\frac{1}{f} = \\frac{1}{p} + \\frac{1}{q}',
+    expression: 'p * q / (p + q)',
+    variables: [
+      { name: 'p', label: '物距 p（物到透镜）', unit: 'm' },
+      { name: 'q', label: '像距 q（像到透镜）', unit: 'm' },
+    ],
+    solveFor: ['p', 'q'],
+    solutions: { p: 'f * q / (q - f)', q: 'f * p / (p - f)' },
+    provenance: { status: 'source-explicit', document: DOC, section: '透镜焦距测量' },
+    uncertainty: { propagatable: true },
+  }),
+  F({
+    id: 'magnification',
+    title: '横向放大率',
+    category: 'optics',
+    latex: '\\beta = \\frac{y\'}{y} = -\\frac{q}{p}',
+    expression: 'y2 / y1',
+    variables: [
+      { name: 'y2', label: '像高 y′', unit: 'm' },
+      { name: 'y1', label: '物高 y', unit: 'm' },
+    ],
+    solveFor: [],
+    provenance: { status: 'source-explicit', document: DOC, section: '透镜焦距测量', note: '像倒立时 β 为负（= −q/p）' },
+  }),
+  F({
+    id: 'bessel-focal-length',
+    title: '共轭法（贝塞尔法）焦距',
+    category: 'optics',
+    latex: 'f = \\frac{b^2 - a^2}{4 b}',
+    expression: '(b^2 - a^2) / (4 * b)',
+    variables: [
+      { name: 'b', label: '物屏-像屏距离 b', unit: 'm', note: '课程给定 Δb=0.20 cm' },
+      { name: 'a', label: '两次透镜位置间距 a=|O2−O1|', unit: 'm', note: '课程给定 Δa=0.25 cm' },
+    ],
+    solveFor: [],
+    provenance: { status: 'source-explicit', document: DOC, section: '透镜焦距测量' },
+    uncertainty: { propagatable: true, note: '6 次测量；b>4f' },
+  }),
+  F({
+    id: 'focimeter',
+    title: '焦距仪测焦距',
+    category: 'optics',
+    latex: "f_x = \\frac{y'}{y}\\, f",
+    expression: 'y2 / y1 * f0',
+    variables: [
+      { name: 'y2', label: "玻罗板像线距 y′ = |y1′−y2′|", unit: 'm' },
+      { name: 'y1', label: '玻罗板线距 y', unit: 'm', note: '相对不确定度 0.02%，讲义默认可忽略' },
+      { name: 'f0', label: '平行光管焦距 f（用仪器标称值）', unit: 'm', defaultValue: 0.4, note: '相对不确定度 0.3%；不得硬编码不可编辑' },
+    ],
+    solveFor: ['f0'],
+    solutions: { f0: 'fx * y1 / y2' },
+    provenance: { status: 'source-explicit', document: DOC, section: '透镜焦距测量' },
+    uncertainty: {
+      propagatable: true,
+      note: "y′ 的 B 分量 = √2×0.004 mm（两位置作差，测微目镜单位置仪器误差 0.004 mm，AGENTS §21.6）",
+    },
+  }),
+  F({
+    id: 'concave-autocollimation',
+    title: '凹透镜自准法焦距',
+    category: 'optics',
+    latex: 'f = -|F_2 - O_2|',
+    expression: '-abs(F2 - O2)',
+    variables: [
+      { name: 'F2', label: '凹透镜焦点位置 F2（光具座读数）', unit: 'm' },
+      { name: 'O2', label: '凹透镜光心位置 O2（180° 转动两次平均）', unit: 'm' },
+    ],
+    solveFor: [],
+    provenance: {
+      status: 'source-explicit',
+      document: DOC,
+      section: '透镜焦距测量',
+      note: 'O2 取转动 180° 前后两次位置平均以消除光心装配系统误差；f 为负值',
+    },
+  }),
+  F({
+    id: 'michelson-equal-inclination',
+    title: '迈克尔逊等倾干涉光程差',
+    category: 'optics',
+    latex: '\\delta = 2 d \\cos\\theta',
+    expression: '2 * d * cos(theta)',
+    variables: [
+      { name: 'd', label: '等效空气膜厚度 d（动镜行程之半）', unit: 'm' },
+      { name: 'theta', label: '出射角 θ（rad）', unit: 'rad' },
+    ],
+    solveFor: ['d'],
+    solutions: { d: 'delta / (2 * cos(theta))' },
+    provenance: { status: 'source-explicit', document: DOC, section: '迈克尔逊干涉实验' },
+    conditions: '中心条纹 2d = kλ；等厚近轴 δ ≈ 2d − dθ²，近交线 δ ≈ 2d',
+  }),
+  F({
+    id: 'michelson-wavelength',
+    title: '迈克尔逊测波长',
+    category: 'optics',
+    latex: '\\lambda = \\frac{2\\,\\Delta d}{\\Delta k}',
+    expression: '2 * dd / dk',
+    variables: [
+      { name: 'dd', label: '动镜移动距离 Δd', unit: 'm' },
+      { name: 'dk', label: '条纹变化数 Δk', unit: '' },
+    ],
+    solveFor: ['dd', 'dk'],
+    solutions: { dd: 'lam * dk / 2', dk: '2 * dd / lam' },
+    provenance: { status: 'source-explicit', document: DOC, section: '迈克尔逊干涉实验' },
+    uncertainty: { propagatable: true },
+  }),
+  F({
+    id: 'michelson-white-light-plate',
+    title: '白光干涉：补偿玻片参数',
+    category: 'optics',
+    latex: "\\delta' = 2\\, l\\, (n-1),\\quad \\Delta d = l\\,(n-1)",
+    expression: 'l * (n - 1)',
+    variables: [
+      { name: 'l', label: '玻片厚度 l', unit: 'm' },
+      { name: 'n', label: '玻片折射率 n', unit: '' },
+    ],
+    solveFor: ['l', 'n'],
+    solutions: { l: 'dd / (n - 1)', n: '1 + dd / l' },
+    provenance: { status: 'source-explicit', document: DOC, section: '迈克尔逊干涉实验' },
+  }),
+];

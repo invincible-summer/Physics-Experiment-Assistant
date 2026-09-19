@@ -1,0 +1,42 @@
+{
+  "name": "physics-experiment-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "大学物理实验小助手 — 纯前端实验数据处理与公式计算工作台",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "decimal.js": "^10.4.3",
+    "dexie": "^4.0.8",
+    "dexie-react-hooks": "^1.1.7",
+    "echarts": "^5.6.0",
+    "katex": "^0.16.11",
+    "mathjs": "^14.0.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.0",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/katex": "^0.16.7",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^2.1.8",
+    "fast-check": "^3.23.2",
+    "typescript": "~5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
