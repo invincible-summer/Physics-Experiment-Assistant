@@ -13,6 +13,7 @@ import { ResultCard } from './ResultInspector';
 import { makeResult } from '../core/results';
 import { Tex } from './katex';
 import { useSettings } from '../stores/settings';
+import { MarkdownInline } from './Markdown';
 
 interface VarState { raw: string; unit: string; uncRaw: string }
 
@@ -177,7 +178,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
   return (
     <div>
       <div className="row" style={{ margin: '8px 0' }}>
-        <span className="field-label" style={{ margin: 0 }}>求哪个量</span>
+        <span className="field-label" style={{ margin: 0 }}><MarkdownInline>求哪个量</MarkdownInline></span>
         <select className="select" style={{ maxWidth: 320 }} value={target} onChange={(e) => setTarget(e.target.value)}>
           {targets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
@@ -190,8 +191,8 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
             <div key={v.name}>
               <div className="field-label">
                 <Tex tex={v.name} />
-                <span>{v.label}</span>
-                {v.defaultValue !== undefined && <span className="badge badge-default">默认 {v.defaultValue}</span>}
+                <span><MarkdownInline>{v.label}</MarkdownInline></span>
+                {v.defaultValue !== undefined && <span className="badge badge-default"><MarkdownInline>{`默认 ${v.defaultValue}`}</MarkdownInline></span>}
               </div>
               <div className="input-unit">
                 <input
@@ -209,9 +210,9 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
                   >
                     {options.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
-                ) : v.unit ? <span className="unit-chip">{v.unit}</span> : null}
+                ) : v.unit ? <span className="unit-chip"><MarkdownInline>{v.unit}</MarkdownInline></span> : null}
               </div>
-              {v.note && <div className="field-help">{v.note}</div>}
+              {v.note && <div className="field-help"><MarkdownInline>{v.note}</MarkdownInline></div>}
               {showUnc && (
                 <input
                   className="input" style={{ marginTop: 4 }} placeholder={`不确定度 ±（${v.unit || '同输入'}，可选）`}
@@ -226,16 +227,16 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       </div>
       {(formula.constants ?? []).length > 0 && (
         <div className="small muted" style={{ marginTop: 6 }}>
-          常数：{(formula.constants ?? []).map((c) => `${c.label} = ${c.value}${c.unit ? ` ${c.unit}` : ''}${c.isExact ? '（精确）' : ''}`).join('；')}
+          <MarkdownInline>{`**常数：**${(formula.constants ?? []).map((c) => `${c.label} = ${c.value}${c.unit ? ` ${c.unit}` : ''}${c.isExact ? '（精确）' : ''}`).join('；')}`}</MarkdownInline>
         </div>
       )}
-      {formula.conditions && <div className="notice notice-info"><span className="n-icon">ℹ</span><div className="n-body">{formula.conditions}</div></div>}
+      {formula.conditions && <div className="notice notice-info"><div className="n-body"><MarkdownInline>{formula.conditions}</MarkdownInline></div></div>}
       <div className="row" style={{ margin: '10px 0' }}>
         <button className="btn btn-primary" onClick={() => setComputed(compute())} disabled={!allFilled || hasInvalid}>
-          计算
+          <MarkdownInline allowLinks={false}>计算</MarkdownInline>
         </button>
-        {!allFilled && <span className="small muted">请填写全部变量</span>}
-        {hasInvalid && <span className="small" style={{ color: 'var(--danger)' }}>存在非法数值输入</span>}
+        {!allFilled && <span className="small muted"><MarkdownInline>请填写全部变量</MarkdownInline></span>}
+        {hasInvalid && <span className="small" style={{ color: 'var(--danger)' }}><MarkdownInline>存在非法数值输入</MarkdownInline></span>}
       </div>
       {computed && <ResultCard item={computed} profileName={profileName} />}
     </div>
