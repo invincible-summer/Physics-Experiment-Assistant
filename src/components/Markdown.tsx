@@ -15,7 +15,7 @@ import { Children, Fragment, ReactNode, useMemo } from 'react';
 import { Tex } from './katex';
 
 export interface MarkdownInlineProps {
-  children: string | number;
+  children: string | number | null | undefined;
   /** Links are disabled inside interactive controls to avoid nested interactive content. */
   allowLinks?: boolean;
   allowMath?: boolean;
@@ -23,7 +23,7 @@ export interface MarkdownInlineProps {
 }
 
 export interface MarkdownBlockProps {
-  children: string | number;
+  children: string | number | null | undefined;
   allowLinks?: boolean;
   allowMath?: boolean;
   className?: string;
@@ -35,7 +35,7 @@ export function MarkdownInline({
   allowMath = true,
   className,
 }: MarkdownInlineProps) {
-  const source = String(children);
+  const source = children == null ? '' : String(children);
   const nodes = useMemo(
     () => parseInline(source, { allowLinks, allowMath }),
     [source, allowLinks, allowMath],
@@ -50,7 +50,7 @@ export function MarkdownBlock({
   allowMath = true,
   className,
 }: MarkdownBlockProps) {
-  const source = String(children);
+  const source = children == null ? '' : String(children);
   const nodes = useMemo(
     () => parseBlocks(source, { allowLinks, allowMath }),
     [source, allowLinks, allowMath],
