@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useSettings } from '../../stores/settings';
 import { ToastRegion } from '../../components/ui';
 import { StandardProfileBadge } from '../../components/StandardProfileBadge';
+import { MarkdownInline } from '../../components/Markdown';
 
 const NAV = [
   { to: '/', label: '首页', mobileLabel: '首页', end: true },
@@ -32,12 +33,12 @@ export function AppShell({ children, topbar }: { children: ReactNode; topbar?: R
         <div className="brand">
           <span className="logo" aria-hidden>φ</span>
           <span className="brand-copy">
-            <strong>物理实验小助手</strong>
-            <span>Physics Lab Workspace</span>
+            <strong><MarkdownInline>物理实验小助手</MarkdownInline></strong>
+            <span><MarkdownInline>Physics Lab Workspace</MarkdownInline></span>
           </span>
         </div>
 
-        <div className="nav-caption">工作区</div>
+        <div className="nav-caption"><MarkdownInline>工作区</MarkdownInline></div>
         <nav className="sidebar-nav">
           {NAV.map((n) => (
             <NavLink
@@ -46,7 +47,7 @@ export function AppShell({ children, topbar }: { children: ReactNode; topbar?: R
               end={n.end}
               className={() => `nav-item${isActive(n.to, n.matchPrefix, location.pathname, n.end) ? ' active' : ''}`}
             >
-              {n.label}
+              <MarkdownInline>{n.label}</MarkdownInline>
             </NavLink>
           ))}
         </nav>
@@ -57,9 +58,9 @@ export function AppShell({ children, topbar }: { children: ReactNode; topbar?: R
             className="btn btn-sm btn-ghost sidebar-theme"
             onClick={() => setTheme('theme', theme === 'dark' ? 'light' : 'dark')}
           >
-            {theme === 'dark' ? '切换到亮色' : '切换到暗色'}
+            <MarkdownInline allowLinks={false}>{theme === 'dark' ? '切换到亮色' : '切换到暗色'}</MarkdownInline>
           </button>
-          <div className="sidebar-privacy">数据仅保存在本浏览器</div>
+          <div className="sidebar-privacy"><MarkdownInline>数据仅保存在本浏览器</MarkdownInline></div>
         </div>
       </aside>
 
@@ -76,7 +77,7 @@ export function AppShell({ children, topbar }: { children: ReactNode; topbar?: R
             end={n.end}
             className={() => `m-item${isActive(n.to, n.matchPrefix, location.pathname, n.end) ? ' active' : ''}`}
           >
-            {n.mobileLabel}
+            <MarkdownInline>{n.mobileLabel}</MarkdownInline>
           </NavLink>
         ))}
       </nav>
