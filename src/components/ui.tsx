@@ -35,10 +35,12 @@ export function Panel({ title, sub, actions, children, id }: {
     <section className="panel" id={id}>
       {(title || actions) && (
         <div className="panel-title">
-          <span>{title}</span>
-          {sub && <span className="panel-sub">{sub}</span>}
+          <div className="panel-heading">
+            <span>{title}</span>
+            {sub && <span className="panel-sub">{sub}</span>}
+          </div>
           <span className="spacer" />
-          {actions}
+          {actions && <div className="panel-actions">{actions}</div>}
         </div>
       )}
       {children}
@@ -51,7 +53,6 @@ export function SafetyNotice({ items, compact = false }: { items: string[]; comp
   if (compact) {
     return (
       <div className="notice notice-warning" role="alert">
-        <span className="n-icon" aria-hidden>⚠</span>
         <div className="n-body">
           <div className="n-title">安全提示</div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
@@ -61,7 +62,6 @@ export function SafetyNotice({ items, compact = false }: { items: string[]; comp
   }
   return (
     <div className="safety-banner" role="alert">
-      <div className="sb-icon" aria-hidden>⚠️</div>
       <div>
         <strong>安全须知（请先阅读，操作以教师现场要求为准）</strong>
         <ul>{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
@@ -92,7 +92,7 @@ export function CopyButton({ text, label = '复制', onCopied }: { text: string 
         setTimeout(() => setDone(false), 1400);
       }}
     >
-      {done ? '✓ 已复制' : label}
+      {done ? '已复制' : label}
     </button>
   );
 }
@@ -111,35 +111,24 @@ export function Modal({ open, onClose, title, children, wide }: {
   if (!open) return null;
   return (
     <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(10,14,20,0.45)', zIndex: 90,
-        display: 'grid', placeItems: 'center', padding: '18px',
-      }}
+      className="modal-backdrop"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div
-        style={{
-          background: 'var(--bg-raised)', borderRadius: 'var(--radius)', maxWidth: wide ? 860 : 560,
-          width: '100%', maxHeight: '86vh', overflow: 'auto', border: '1px solid var(--border-strong)',
-          boxShadow: 'var(--shadow)',
-        }}
-      >
-        <div className="panel-title" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
+      <div className={`modal-card${wide ? ' modal-wide' : ''}`}>
+        <div className="modal-head">
           <span>{title}</span>
-          <span className="spacer" />
-          <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="关闭">✕</button>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>关闭</button>
         </div>
-        <div style={{ padding: '14px 16px' }}>{children}</div>
+        <div className="modal-body">{children}</div>
       </div>
     </div>
   );
 }
 
-export function EmptyState({ icon = '📋', title, hint }: { icon?: string; title: string; hint?: string }) {
+export function EmptyState({ title, hint }: { icon?: string; title: string; hint?: string }) {
   return (
     <div className="empty-state">
-      <div className="e-icon" aria-hidden>{icon}</div>
-      <div>{title}</div>
+      <div className="empty-title">{title}</div>
       {hint && <div className="small">{hint}</div>}
     </div>
   );
@@ -185,7 +174,7 @@ export function ToastRegion() {
   );
 }
 
-/** 确认对话框（清空数据等二次确认，AGENTS §13） */
+/** 确认按钮（清空数据等二次确认，AGENTS.md §13） */
 export function ConfirmButton({ onConfirm, children, question, className = 'btn', title }: {
   onConfirm: () => void; children: ReactNode; question: string; className?: string; title?: string;
 }) {
@@ -195,7 +184,7 @@ export function ConfirmButton({ onConfirm, children, question, className = 'btn'
   return (
     <button
       className={className}
-      title={title}
+      title={title ?? question}
       onClick={() => {
         if (!arm) {
           setArm(true);
@@ -207,7 +196,7 @@ export function ConfirmButton({ onConfirm, children, question, className = 'btn'
         onConfirm();
       }}
     >
-      {arm ? '⚠ 再次点击确认' : children}
+      {arm ? '再次点击确认' : children}
     </button>
   );
 }

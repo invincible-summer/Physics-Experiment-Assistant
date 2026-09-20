@@ -20,7 +20,7 @@ export function ExperimentsPage() {
           <div key={exp.id} className="panel exp-card">
             <div className="fc-title">
               <span>{exp.title}</span>
-              {exp.safety.length > 0 && <Badge variant="warning" title="含安全提示">⚠ 安全</Badge>}
+              {exp.safety.length > 0 && <Badge variant="warning" title="含安全提示">含安全提示</Badge>}
             </div>
             <div className="small muted">{exp.subtitle}</div>
             <div className="tags">
@@ -85,7 +85,7 @@ export function NewExperimentProjectPage() {
   return (
     <main className="page">
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn btn-sm" onClick={() => navigate('/experiments')}>← 实验列表</button>
+        <button className="btn btn-sm" onClick={() => navigate('/experiments')}>返回实验列表</button>
       </div>
       <h1>新建项目：{experiment.title}</h1>
       <Panel title="项目信息" sub={`${experiment.steps.length} 个步骤 · 数据保存在本浏览器`}>
@@ -96,7 +96,6 @@ export function NewExperimentProjectPage() {
         </div>
         {experiment.safety.length > 0 && (
           <div className="notice notice-warning">
-            <span className="n-icon">⚠</span>
             <div className="n-body">
               <div className="n-title">本实验含安全提示</div>
               {experiment.safety[0]}{experiment.safety.length > 1 ? ` 等 ${experiment.safety.length} 条` : ''}

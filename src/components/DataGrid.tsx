@@ -206,14 +206,14 @@ export function DataGrid({
       {title && <div className="panel-title">{title}</div>}
       {hint && <div className="panel-sub" style={{ marginBottom: 6 }}>{hint}</div>}
       <div className="row" style={{ marginBottom: 8 }}>
-        <button className="btn btn-sm" onClick={() => addRow()}>＋ 加行</button>
+        <button className="btn btn-sm" onClick={() => addRow()}>添加一行</button>
         <button className="btn btn-sm" onClick={() => {
           const next = rows.map((r) => [...r]);
           while (next.length < defaultRows) next.push(columns.map(() => ''));
           if (next.length !== rows.length) pushHistory(next);
         }}>补足 {defaultRows} 行</button>
-        <button className="btn btn-sm" onClick={undo} disabled={undoStack.current.length === 0}>↶ 撤销</button>
-        <button className="btn btn-sm" onClick={redo} disabled={redoStack.current.length === 0}>↷ 重做</button>
+        <button className="btn btn-sm" onClick={undo} disabled={undoStack.current.length === 0}>撤销</button>
+        <button className="btn btn-sm" onClick={redo} disabled={redoStack.current.length === 0}>重做</button>
         <span className="spacer" style={{ flex: 1 }} />
         <button
           className="btn btn-sm"
@@ -236,7 +236,7 @@ export function DataGrid({
                   )}
                 </th>
               ))}
-              <th style={{ width: 60 }}>操作</th>
+              <th style={{ width: 118 }}>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -245,7 +245,7 @@ export function DataGrid({
                 <td className={`row-idx${excludedRows.includes(r) ? ' row-excluded' : ''}`}
                   onClick={() => onToggleExclude?.(r)}
                   title={onToggleExclude ? '点击排除/恢复该行（记录审计）' : undefined}
-                >{excludedRows.includes(r) ? '⊘' : r + 1}</td>
+                >{r + 1}</td>
                 {columns.map((c, j) => {
                   if (c.kind === 'derived') {
                     const v = derivedValues[r]?.[j];
@@ -277,9 +277,9 @@ export function DataGrid({
                     </td>
                   );
                 })}
-                <td>
-                  <button className="btn btn-sm btn-ghost" title="在下方插入行" onClick={() => addRow(r)}>＋</button>
-                  <button className="btn btn-sm btn-ghost" title="删除该行" onClick={() => removeRow(r)}>✕</button>
+                <td className="grid-actions">
+                  <button className="btn btn-sm btn-ghost" onClick={() => addRow(r)}>插入</button>
+                  <button className="btn btn-sm btn-ghost btn-danger" onClick={() => removeRow(r)}>删除</button>
                 </td>
               </tr>
             ))}
