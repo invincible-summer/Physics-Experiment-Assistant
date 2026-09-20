@@ -86,7 +86,7 @@ export function NewExperimentProjectPage() {
   return (
     <main className="page">
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn btn-sm" onClick={() => navigate('/experiments')}>返回实验列表</button>
+        <button className="btn btn-sm" onClick={() => navigate('/experiments')}><MarkdownInline allowLinks={false}>返回实验列表</MarkdownInline></button>
       </div>
       <h1><MarkdownInline>{`新建项目：${experiment.title}`}</MarkdownInline></h1>
       <Panel title="项目信息" sub={`${experiment.steps.length} 个步骤 · 数据保存在本浏览器`}>
