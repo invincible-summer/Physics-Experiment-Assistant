@@ -31,6 +31,8 @@ export interface Preferences {
   showDiagnostics: boolean;
   expertMode: boolean;
   theme: 'light' | 'dark';
+  /** 桌面主边栏折叠状态；移动端仍使用底栏。 */
+  sidebarCollapsed: boolean;
   autosave: boolean;
 }
 
@@ -59,6 +61,7 @@ const defaults: Preferences = {
   showDiagnostics: true,
   expertMode: false,
   theme: 'light',
+  sidebarCollapsed: false,
   autosave: true,
 };
 
