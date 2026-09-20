@@ -348,6 +348,12 @@ v1 至少支持：
 - 不以颜色作为唯一信息编码；遵循 WCAG AA；键盘焦点必须清晰可见；交互目标不得小于 WCAG 2.2 的 24×24 CSS px 最低要求；KaTeX 同时保留可访问文本/MathML。
 - 支持 `prefers-reduced-motion`，避免非必要动画；支持亮/暗色主题，但科学图表导出默认采用白底可打印样式。
 - UI 重构优先通过现有 React + CSS 完成，不为图标、动效或基础布局引入额外 UI 依赖，保持 GitHub Pages 包体和运行时开销轻量。
+- **所有可富文本渲染的可见 UI 文案统一走 Markdown 渲染层**：页面标题/说明、按钮与链接标签、badge、panel 标题/副标题、表单标签与帮助、notice、toast、空状态、表格文字、结果说明与列表项都不得直接把业务字符串裸渲染到 JSX。
+- 统一使用 `src/components/Markdown.tsx`：单行/控件文案用 `MarkdownInline`，块级说明用 `MarkdownBlock`，数组列表用 `MarkdownList`；共享组件的 `ReactNode` 文案用 `markdownInlineNode` 兜底。
+- 按钮等交互控件内 Markdown 必须设置 `allowLinks={false}`，避免产生嵌套交互元素；链接语法在此场景只渲染标签文本。
+- Markdown 渲染器不得执行 raw HTML，不得使用 `dangerouslySetInnerHTML`，链接协议只允许站内相对地址、`http(s)` 与 `mailto`；数学片段继续复用 KaTeX。
+- 为保持轻量化，不为 Markdown 引入 `react-markdown` / remark / rehype 等运行时依赖。当前渲染器覆盖项目 UI 所需子集：粗体、斜体、删除线、行内代码、链接、行内/块级数学、标题、引用、代码块、分隔线、普通/有序/任务列表和 Markdown 表格。
+- 原生 `<option>`、`placeholder`、`title`、`aria-label` 等浏览器只接受纯字符串的属性/原生文本位置属于平台限制例外：不得在这些字符串中放 Markdown 语法；其对应的可见标签/帮助文本仍必须由 Markdown 渲染层输出。
 
 ## 13. 数据持久化与隐私
 

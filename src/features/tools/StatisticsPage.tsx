@@ -10,6 +10,7 @@ import { ResultCard } from '../../components/ResultInspector';
 import { makeResult } from '../../core/results';
 import { Panel } from '../../components/ui';
 import { formatSigDigitsPercent } from '../../core/sigfig';
+import { MarkdownInline } from '../../components/Markdown';
 
 export function StatisticsPage() {
   const profile = useSettings((s) => s.activeProfile());
@@ -78,8 +79,8 @@ export function StatisticsPage() {
 
   return (
     <main className="page">
-      <h1>快速统计</h1>
-      <p className="muted">粘贴一列数据，得到统计量与当前标准（{profileName}）下的直接测量不确定度</p>
+      <h1><MarkdownInline>快速统计</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>{`粘贴一列数据，得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="数据">
@@ -87,7 +88,7 @@ export function StatisticsPage() {
           </Panel>
           <Panel title="统计结果">
             {!stats ? (
-              <div className="empty-state"><div className="e-icon">📊</div><div>等待数据输入</div></div>
+              <div className="empty-state"><div><MarkdownInline>等待数据输入</MarkdownInline></div></div>
             ) : (
               <table className="contrib-table">
                 <tbody>
@@ -109,26 +110,25 @@ export function StatisticsPage() {
           <Panel title={`不确定度（${profileName}）`}>
             <div className="form-grid">
               <div>
-                <div className="field-label">仪器误差限 {profile.kind === 'gbt' ? '（B 类半宽 a，默认矩形分布）' : 'Δ仪'}</div>
+                <div className="field-label"><MarkdownInline>{`仪器误差限 ${profile.kind === 'gbt' ? '（B 类半宽 a，默认矩形分布）' : 'Δ仪'}`}</MarkdownInline></div>
                 <input className="input" value={instrumentError} inputMode="decimal" placeholder="如 0.02" onChange={(e) => setInstrumentError(e.target.value)} />
               </div>
               <div>
-                <div className="field-label">已定系统误差修正值（可选）</div>
+                <div className="field-label"><MarkdownInline>已定系统误差修正值（可选）</MarkdownInline></div>
                 <input className="input" value={correction} inputMode="decimal" placeholder="如 -0.01" onChange={(e) => setCorrection(e.target.value)} />
               </div>
             </div>
             {uncertaintyResult && 'error' in uncertaintyResult ? (
-              <div className="notice notice-danger"><span className="n-icon">✕</span><div className="n-body">{uncertaintyResult.error}</div></div>
+              <div className="notice notice-danger"><div className="n-body"><MarkdownInline>{uncertaintyResult.error}</MarkdownInline></div></div>
             ) : resultItem ? (
               <ResultCard item={resultItem} profileName={profileName} />
             ) : (
-              <div className="field-help" style={{ marginTop: 8 }}>填写仪器误差限后计算</div>
+              <div className="field-help" style={{ marginTop: 8 }}><MarkdownInline>填写仪器误差限后计算</MarkdownInline></div>
             )}
           </Panel>
           {profile.kind === 'gbt' && (
             <div className="notice notice-info">
-              <span className="n-icon">§</span>
-              <div className="n-body">GB/T 模式：A 类不加 t 因子；B 类默认按矩形分布换算 a/√3。如需三角/正态分布请用公式工作台的 GB/T 公式族。</div>
+              <div className="n-body"><MarkdownInline>GB/T 模式：A 类不加 `t` 因子；B 类默认按矩形分布换算 `a/√3`。如需三角/正态分布请用公式工作台的 GB/T 公式族。</MarkdownInline></div>
             </div>
           )}
         </div>
@@ -140,7 +140,7 @@ export function StatisticsPage() {
 function StatRow({ label, value }: { label: string; value: number }) {
   return (
     <tr>
-      <td>{label}</td>
+      <td><MarkdownInline>{label}</MarkdownInline></td>
       <td className="num">{Number.isFinite(value) ? value.toPrecision(8).replace(/\.?0+$/, '') : '—'}</td>
     </tr>
   );

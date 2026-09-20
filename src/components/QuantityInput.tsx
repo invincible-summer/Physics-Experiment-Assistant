@@ -2,6 +2,7 @@
 import { ReactNode, useMemo } from 'react';
 import { parseNumericText } from '../core/numeric';
 import { tryGetUnitDef, unitsOfFamily, sameDimension } from '../core/quantity';
+import { MarkdownInline, markdownInlineNode } from './Markdown';
 
 export interface QuantityInputProps {
   label?: ReactNode;
@@ -24,7 +25,7 @@ export function QuantityInput({ label, value, onChange, unit, onUnitChange, unit
   const invalid = errorHint !== false && value.trim() !== '' && !parsed.ok;
   return (
     <div>
-      {label && <div className="field-label">{label}</div>}
+      {label && <div className="field-label">{markdownInlineNode(label)}</div>}
       <div className="input-unit">
         <input
           className={`input${invalid ? ' invalid' : ''}`}
@@ -43,11 +44,11 @@ export function QuantityInput({ label, value, onChange, unit, onUnitChange, unit
             {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         ) : unit !== undefined ? (
-          <span className="unit-chip">{unit}</span>
+          <span className="unit-chip"><MarkdownInline>{unit}</MarkdownInline></span>
         ) : null}
       </div>
-      {invalid && <div className="field-error">{parsed.error}</div>}
-      {!invalid && hint && <div className="field-help">{hint}</div>}
+      {invalid && <div className="field-error"><MarkdownInline>{parsed.error}</MarkdownInline></div>}
+      {!invalid && hint && <div className="field-help"><MarkdownInline>{hint}</MarkdownInline></div>}
       {extra}
     </div>
   );

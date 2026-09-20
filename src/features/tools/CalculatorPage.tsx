@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { compileExpression, evaluateExpression, ExpressionError } from '../../core/expression';
 import { Panel, CopyButton } from '../../components/ui';
 import { useSettings } from '../../stores/settings';
+import { MarkdownInline } from '../../components/Markdown';
 
 const KEYS: string[][] = [
   ['7', '8', '9', '/', 'sqrt(', 'sin('],
@@ -36,8 +37,8 @@ export function CalculatorPage() {
 
   return (
     <main className="page">
-      <h1>科学计算器</h1>
-      <p className="muted">安全 AST 求值（无 eval）。当前角度模式：<strong>{angleUnit === 'deg' ? '度（°）' : '弧度（rad）'}</strong>（可在设置修改）</p>
+      <h1><MarkdownInline>科学计算器</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>{`安全 AST 求值（无 \`eval\`）。当前角度模式：**${angleUnit === 'deg' ? '度（°）' : '弧度（rad）'}**（可在设置修改）`}</MarkdownInline></p>
       <div style={{ maxWidth: 640 }}>
         <Panel title="表达式">
           <input
@@ -52,16 +53,16 @@ export function CalculatorPage() {
             placeholder="如 2*pi*1.5e3 或 sqrt(3^2+4^2)"
           />
           <div className="calc-display" style={{ marginTop: 8 }}>
-            {result === null ? '​' : 'error' in result ? <span style={{ color: 'var(--danger)' }}>{result.error}</span> : result.value}
+            {result === null ? '​' : 'error' in result ? <span style={{ color: 'var(--danger)' }}><MarkdownInline>{result.error}</MarkdownInline></span> : result.value}
           </div>
           <div className="calc-pad" style={{ marginTop: 10 }}>
             {KEYS.flat().map((k) => (
-              <button key={k} className="btn calc-key" onClick={() => append(k)}>{k.replace('(', '')}</button>
+              <button key={k} className="btn calc-key" onClick={() => append(k)}><MarkdownInline allowLinks={false}>{k.replace('(', '')}</MarkdownInline></button>
             ))}
-            <button className="btn calc-key" onClick={() => setText((t) => t.slice(0, -1))}>⌫</button>
-            <button className="btn calc-key" onClick={() => setText('')}>C</button>
-            <button className="btn calc-key" onClick={() => setText((t) => t + '(')}>（</button>
-            <button className="btn calc-key" onClick={() => setText((t) => t + ')')}>）</button>
+            <button className="btn calc-key" onClick={() => setText((t) => t.slice(0, -1))}><MarkdownInline allowLinks={false}>⌫</MarkdownInline></button>
+            <button className="btn calc-key" onClick={() => setText('')}><MarkdownInline allowLinks={false}>C</MarkdownInline></button>
+            <button className="btn calc-key" onClick={() => setText((t) => t + '(')}><MarkdownInline allowLinks={false}>（</MarkdownInline></button>
+            <button className="btn calc-key" onClick={() => setText((t) => t + ')')}><MarkdownInline allowLinks={false}>）</MarkdownInline></button>
             <button
               className="btn btn-primary calc-key"
               onClick={() => {
@@ -70,14 +71,14 @@ export function CalculatorPage() {
                   setText(String(result.value));
                 }
               }}
-            >=</button>
+            ><MarkdownInline allowLinks={false}>=</MarkdownInline></button>
           </div>
         </Panel>
         {history.length > 0 && (
-          <Panel title="历史" actions={<button className="btn btn-sm" onClick={() => setHistory([])}>清空</button>}>
+          <Panel title="历史" actions={<button className="btn btn-sm" onClick={() => setHistory([])}><MarkdownInline allowLinks={false}>清空</MarkdownInline></button>}>
             {history.map((h, i) => (
               <div key={i} className="row" style={{ justifyContent: 'space-between' }}>
-                <span className="mono small">{h.expr} = <strong>{h.value}</strong></span>
+                <span className="mono small"><MarkdownInline>{`${h.expr} = **${h.value}**`}</MarkdownInline></span>
                 <CopyButton text={h.value} label="复制" />
               </div>
             ))}

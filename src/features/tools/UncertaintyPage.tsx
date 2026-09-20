@@ -9,6 +9,7 @@ import { makeResult } from '../../core/results';
 import { ResultCard } from '../../components/ResultInspector';
 import { Tex } from '../../components/katex';
 import { formatSigDigitsPercent } from '../../core/sigfig';
+import { MarkdownInline } from '../../components/Markdown';
 
 export function UncertaintyPage() {
   const profile = useSettings((s) => s.activeProfile());
@@ -115,8 +116,8 @@ export function UncertaintyPage() {
 
   return (
     <main className="page">
-      <h1>不确定度传播</h1>
-      <p className="muted">输入 Y = f(x₁, x₂, …)，自动符号偏导 → 灵敏度系数 → 贡献 → 合成（当前标准 {profile.shortName}）</p>
+      <h1><MarkdownInline>不确定度传播</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>{`输入 \`Y = f(x₁, x₂, …)\`，自动符号偏导 → 灵敏度系数 → 贡献 → 合成（当前标准 **${profile.shortName}**）`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="表达式">
@@ -126,7 +127,7 @@ export function UncertaintyPage() {
               placeholder="如 pi/4 * (D^2 - d^2) * h"
             />
             <div className="field-help" style={{ marginTop: 4 }}>
-              支持 + − * / ^、sqrt/exp/ln/log、sin/cos/tan（弧度）、pi、e。变量名自动识别。<strong>禁止任意 JS 执行</strong>（安全 AST）。
+              <MarkdownInline>支持 `+ − * / ^`、`sqrt/exp/ln/log`、`sin/cos/tan`（弧度）、`pi`、`e`。变量名自动识别。**禁止任意 JS 执行**（安全 AST）。</MarkdownInline>
             </div>
             <div className="fc-latex" style={{ marginTop: 8 }}>
               <Tex tex={latexPreview(expression)} display />
@@ -134,7 +135,7 @@ export function UncertaintyPage() {
           </Panel>
           <Panel title="变量与不确定度">
             {variables.length === 0 ? (
-              <div className="field-help">输入合法表达式后显示变量</div>
+              <div className="field-help"><MarkdownInline>输入合法表达式后显示变量</MarkdownInline></div>
             ) : (
               <div className="form-grid">
                 {variables.map((v) => (
@@ -157,18 +158,18 @@ export function UncertaintyPage() {
             )}
             {profile.kind === 'gbt' && (
               <div style={{ marginTop: 10 }}>
-                <div className="field-label">相关系数（可选，每行：变量1 变量2 r）</div>
+                <div className="field-label"><MarkdownInline>相关系数（可选，每行：变量1 变量2 r）</MarkdownInline></div>
                 <textarea className="textarea" rows={3} value={correlationsText} onChange={(e) => setCorrelationsText(e.target.value)} placeholder="x y 0.5" />
               </div>
             )}
             {'error' in evaluated && evaluated.error && (
-              <div className="notice notice-danger" style={{ marginTop: 8 }}><span className="n-icon">✕</span><div className="n-body">{evaluated.error}</div></div>
+              <div className="notice notice-danger" style={{ marginTop: 8 }}><div className="n-body"><MarkdownInline>{evaluated.error}</MarkdownInline></div></div>
             )}
           </Panel>
         </div>
         <div className="stack">
           {resultItem ? <ResultCard item={resultItem} profileName={profile.shortName} /> : (
-            <Panel title="传播结果"><div className="empty-state"><div className="e-icon">∑</div><div>填写全部变量后自动计算</div></div></Panel>
+            <Panel title="传播结果"><div className="empty-state"><div><MarkdownInline>填写全部变量后自动计算</MarkdownInline></div></div></Panel>
           )}
         </div>
       </div>

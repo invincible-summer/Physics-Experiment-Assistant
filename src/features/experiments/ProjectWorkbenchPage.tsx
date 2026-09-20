@@ -19,6 +19,7 @@ import { Panel, Modal, CopyButton, Badge, toast } from '../../components/ui';
 import { Tex } from '../../components/katex';
 import { buildDataProcessingMarkdown, buildResultLatex, tableToCSV, serializeProject } from '../../export';
 import { ForcedPlotsBlock, QuasiDiagnosticsBlock, MichelsonChecklistBlock } from './custom-blocks';
+import { MarkdownInline, MarkdownList } from '../../components/Markdown';
 
 export function ProjectWorkbenchPage() {
   const { projectId } = useParams();
@@ -106,8 +107,8 @@ export function ProjectWorkbenchPage() {
     return (
       <AppShell>
         <main className="page">
-          <div className="empty-state"><div className="e-icon">❓</div><div>{loadError}</div></div>
-          <button className="btn" onClick={() => navigate('/projects')}>返回项目列表</button>
+          <div className="empty-state"><div><MarkdownInline>{loadError}</MarkdownInline></div></div>
+          <button className="btn" onClick={() => navigate('/projects')}><MarkdownInline allowLinks={false}>返回项目列表</MarkdownInline></button>
         </main>
       </AppShell>
     );
@@ -115,7 +116,7 @@ export function ProjectWorkbenchPage() {
   if (!project || !experiment) {
     return (
       <AppShell>
-        <main className="page"><div className="empty-state"><div className="e-icon">⏳</div><div>加载中…</div></div></main>
+        <main className="page"><div className="empty-state"><div><MarkdownInline>加载中…</MarkdownInline></div></div></main>
       </AppShell>
     );
   }
@@ -132,8 +133,8 @@ export function ProjectWorkbenchPage() {
         return (
           <div className="safety-banner" role="alert">
             <div>
-              <strong>安全须知（操作以教师现场要求为准）</strong>
-              <ul>{block.items.map((s, i) => <li key={i}>{s}</li>)}</ul>
+              <strong><MarkdownInline>安全须知（操作以教师现场要求为准）</MarkdownInline></strong>
+              <MarkdownList items={block.items} />
             </div>
           </div>
         );
@@ -147,8 +148,8 @@ export function ProjectWorkbenchPage() {
                 return (
                   <div key={fid}>
                     <div className="field-label">
-                      <span>{field.label}</span>
-                      {field.unit && <span className="mono">[{field.unit}]</span>}
+                      <span><MarkdownInline>{field.label}</MarkdownInline></span>
+                      {field.unit && <span className="mono"><MarkdownInline>{`[${field.unit}]`}</MarkdownInline></span>}
                     </div>
                     <input
                       className="input"
@@ -157,9 +158,9 @@ export function ProjectWorkbenchPage() {
                       inputMode={field.kind === 'text' ? 'text' : 'decimal'}
                       onChange={(e) => updateProject((p) => { p.params[fid] = e.target.value; })}
                     />
-                    {field.hint && <div className="field-help">{field.hint}</div>}
+                    {field.hint && <div className="field-help"><MarkdownInline>{field.hint}</MarkdownInline></div>}
                     {field.instrumentErrorNote && (
-                      <div className="field-help" style={{ color: 'var(--warning)' }}>{field.instrumentErrorNote}</div>
+                      <div className="field-help" style={{ color: 'var(--warning)' }}><MarkdownInline>{field.instrumentErrorNote}</MarkdownInline></div>
                     )}
                   </div>
                 );
@@ -191,7 +192,7 @@ export function ProjectWorkbenchPage() {
               defaultRows={ds.defaultRows ?? 8}
               title=""
             />
-            <div className="small muted" style={{ marginTop: 6 }}>点击行号排除/恢复该行（写入审计日志，绝不自动删除数据）。</div>
+            <div className="small muted" style={{ marginTop: 6 }}><MarkdownInline>点击行号排除/恢复该行（写入审计日志，绝不自动删除数据）。</MarkdownInline></div>
           </Panel>
         );
       }
@@ -204,7 +205,7 @@ export function ProjectWorkbenchPage() {
               if (!fit || !spec || ('error' in fit)) {
                 return (
                   <Panel key={fid} title={spec?.title ?? fid}>
-                    <div className="field-help">{fit && 'error' in fit ? fit.error : '数据不足或存在非法输入'}</div>
+                    <div className="field-help"><MarkdownInline>{fit && 'error' in fit ? fit.error : '数据不足或存在非法输入'}</MarkdownInline></div>
                   </Panel>
                 );
               }
@@ -216,22 +217,22 @@ export function ProjectWorkbenchPage() {
                   {ols ? (
                     <table className="contrib-table" style={{ marginTop: 8 }}>
                       <tbody>
-                        <tr><td>截距 a</td><td className="num">{ols.a.toPrecision(8)}</td><td>斜率 b</td><td className="num">{ols.b.toPrecision(8)}</td></tr>
-                        <tr><td>相关系数 r</td><td className="num">{ols.r.toPrecision(6)}</td><td>t 因子</td><td className="num">{ols.t.toPrecision(6)}</td></tr>
-                        <tr><td>Sa</td><td className="num">{ols.sa.toPrecision(8)}</td><td>Sb</td><td className="num">{ols.sb.toPrecision(8)}</td></tr>
-                        <tr><td>Δa = t·Sa</td><td className="num">{ols.deltaA.toPrecision(8)}</td><td>Δb = t·Sb</td><td className="num">{ols.deltaB.toPrecision(8)}</td></tr>
-                        <tr><td>SSE</td><td className="num">{ols.sse.toPrecision(8)}</td><td>S</td><td className="num">{ols.s.toPrecision(8)}</td></tr>
+                        <tr><td><MarkdownInline>截距 a</MarkdownInline></td><td className="num">{ols.a.toPrecision(8)}</td><td><MarkdownInline>斜率 b</MarkdownInline></td><td className="num">{ols.b.toPrecision(8)}</td></tr>
+                        <tr><td><MarkdownInline>相关系数 r</MarkdownInline></td><td className="num">{ols.r.toPrecision(6)}</td><td><MarkdownInline>t 因子</MarkdownInline></td><td className="num">{ols.t.toPrecision(6)}</td></tr>
+                        <tr><td><MarkdownInline>Sa</MarkdownInline></td><td className="num">{ols.sa.toPrecision(8)}</td><td><MarkdownInline>Sb</MarkdownInline></td><td className="num">{ols.sb.toPrecision(8)}</td></tr>
+                        <tr><td><MarkdownInline>Δa = t·Sa</MarkdownInline></td><td className="num">{ols.deltaA.toPrecision(8)}</td><td><MarkdownInline>Δb = t·Sb</MarkdownInline></td><td className="num">{ols.deltaB.toPrecision(8)}</td></tr>
+                        <tr><td><MarkdownInline>SSE</MarkdownInline></td><td className="num">{ols.sse.toPrecision(8)}</td><td><MarkdownInline>S</MarkdownInline></td><td className="num">{ols.s.toPrecision(8)}</td></tr>
                       </tbody>
                     </table>
                   ) : org ? (
                     <table className="contrib-table" style={{ marginTop: 8 }}>
                       <tbody>
-                        <tr><td>斜率 b</td><td className="num">{org.b.toPrecision(8)}</td><td>R²</td><td className="num">{org.r2.toPrecision(6)}</td></tr>
-                        <tr><td>Sb</td><td className="num">{org.sb.toPrecision(8)}</td><td>Δb = t·Sb</td><td className="num">{org.deltaB.toPrecision(8)}</td></tr>
+                        <tr><td><MarkdownInline>斜率 b</MarkdownInline></td><td className="num">{org.b.toPrecision(8)}</td><td><MarkdownInline>R²</MarkdownInline></td><td className="num">{org.r2.toPrecision(6)}</td></tr>
+                        <tr><td><MarkdownInline>Sb</MarkdownInline></td><td className="num">{org.sb.toPrecision(8)}</td><td><MarkdownInline>Δb = t·Sb</MarkdownInline></td><td className="num">{org.deltaB.toPrecision(8)}</td></tr>
                       </tbody>
                     </table>
                   ) : null}
-                  <div className="small muted" style={{ marginTop: 6 }}>课程模式首先显示 r；R² 为工程扩展指标。</div>
+                  <div className="small muted" style={{ marginTop: 6 }}><MarkdownInline>课程模式首先显示 r；R² 为工程扩展指标。</MarkdownInline></div>
                 </Panel>
               );
             })}
@@ -272,7 +273,7 @@ export function ProjectWorkbenchPage() {
         return (
           <Panel title={spec.title}>
             {points.length === 0 ? (
-              <div className="empty-state"><div className="empty-title">暂无有效数据点</div><div className="small">填写数据后将自动生成图表。</div></div>
+              <div className="empty-state"><div className="empty-title"><MarkdownInline>暂无有效数据点</MarkdownInline></div><div className="small"><MarkdownInline>填写数据后将自动生成图表。</MarkdownInline></div></div>
             ) : (
               <>
                 <PhysicsPlot title={spec.title} xLabel={spec.xLabel} yLabel={spec.yLabel} series={series} />
@@ -291,14 +292,14 @@ export function ProjectWorkbenchPage() {
             {items.map((item) => <ResultCard key={item.id} item={item} profileName={profile.shortName} />)}
             {missing.length > 0 && (
               <Panel title="待计算">
-                <div className="field-help">缺少所需数据或参数：{missing.join('、')}</div>
+                <div className="field-help"><MarkdownInline>{`缺少所需数据或参数：${missing.join('、')}`}</MarkdownInline></div>
               </Panel>
             )}
           </div>
         );
       }
       case 'note':
-        return <div className="notice notice-info"><div className="n-body">{block.text}</div></div>;
+        return <div className="notice notice-info"><div className="n-body"><MarkdownInline>{block.text}</MarkdownInline></div></div>;
       case 'custom':
         if (block.component === 'forced-plots') {
           return <ForcedPlotsBlock series={computation?.custom['forced-series'] as never} />;
@@ -323,14 +324,14 @@ export function ProjectWorkbenchPage() {
     <AppShell
       topbar={
         <>
-          <button className="btn btn-sm" onClick={() => navigate('/projects')}>返回项目</button>
-          <span className="title">{project.title}</span>
+          <button className="btn btn-sm" onClick={() => navigate('/projects')}><MarkdownInline allowLinks={false}>返回项目</MarkdownInline></button>
+          <span className="title"><MarkdownInline>{project.title}</MarkdownInline></span>
           <Badge variant="default">{experiment.title}</Badge>
           <StandardProfileBadge />
           <span className={`save-dot ${saveState}`} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'} />
-          <span className="save-label">{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中…' : '保存失败'}</span>
-          <button className="btn btn-sm" onClick={() => setInspectorOpen((v) => !v)}>{inspectorOpen ? '隐藏结果' : '显示结果'}</button>
-          <button className="btn btn-sm btn-primary" onClick={() => setExportOpen(true)}>导出</button>
+          <span className="save-label"><MarkdownInline>{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中…' : '保存失败'}</MarkdownInline></span>
+          <button className="btn btn-sm" onClick={() => setInspectorOpen((v) => !v)}><MarkdownInline allowLinks={false}>{inspectorOpen ? '隐藏结果' : '显示结果'}</MarkdownInline></button>
+          <button className="btn btn-sm btn-primary" onClick={() => setExportOpen(true)}><MarkdownInline allowLinks={false}>导出</MarkdownInline></button>
         </>
       }
     >
@@ -344,14 +345,14 @@ export function ProjectWorkbenchPage() {
                 onClick={() => setStepIdx(i)}
               >
                 <span className="num">{i + 1}</span>
-                <span>{s.title}</span>
+                <span><MarkdownInline>{s.title}</MarkdownInline></span>
               </button>
             ))}
           </nav>
           <main className="workbench-main">
             {migrationNote && (
               <div className="notice notice-warning" style={{ marginBottom: 12 }}>
-                <div className="n-body">{migrationNote}<button className="btn btn-sm btn-ghost" onClick={() => setMigrationNote(null)}>知道了</button></div>
+                <div className="n-body"><MarkdownInline>{migrationNote}</MarkdownInline><button className="btn btn-sm btn-ghost" onClick={() => setMigrationNote(null)}><MarkdownInline allowLinks={false}>知道了</MarkdownInline></button></div>
               </div>
             )}
             {step?.id === experiment.steps[0].id && experiment.metadataFields.length > 0 && (
@@ -359,7 +360,7 @@ export function ProjectWorkbenchPage() {
                 <div className="form-grid">
                   {experiment.metadataFields.map((f) => (
                     <div key={f.id}>
-                      <div className="field-label">{f.label}</div>
+                      <div className="field-label"><MarkdownInline>{f.label}</MarkdownInline></div>
                       <input
                         className="input"
                         value={project.metadata[f.id] ?? ''}
@@ -370,24 +371,24 @@ export function ProjectWorkbenchPage() {
                 </div>
               </Panel>
             )}
-            <h2>{stepIdx + 1}. {step?.title}</h2>
+            <h2><MarkdownInline>{`${stepIdx + 1}. ${step?.title ?? ''}`}</MarkdownInline></h2>
             <div className="stack">{step?.blocks.map((b, i) => <div key={i}>{renderBlock(b)}</div>)}</div>
           </main>
           <aside className="workbench-inspector" aria-label="结果检查器">
-            <div className="panel-title">结果检查器
+            <div className="panel-title"><MarkdownInline>结果检查器</MarkdownInline>
               <span className="spacer" style={{ flex: 1 }} />
-              <button className="btn btn-sm btn-ghost inspector-toggle" onClick={() => setInspectorOpen(false)}>收起</button>
+              <button className="btn btn-sm btn-ghost inspector-toggle" onClick={() => setInspectorOpen(false)}><MarkdownInline allowLinks={false}>收起</MarkdownInline></button>
             </div>
             {computation && computation.diagnostics.length > 0 && (
               <div className="notice notice-warning">
                 <div className="n-body">
-                  <div className="n-title">数据诊断</div>
-                  <ul style={{ margin: 0, paddingLeft: 18 }}>{computation.diagnostics.map((d, i) => <li key={i}>{d}</li>)}</ul>
+                  <div className="n-title"><MarkdownInline>数据诊断</MarkdownInline></div>
+                  <MarkdownList items={computation.diagnostics} />
                 </div>
               </div>
             )}
             {results.length === 0 ? (
-              <div className="empty-state"><div className="empty-title">等待计算结果</div><div className="small">填写当前步骤所需数据后，结果会在这里出现。</div></div>
+              <div className="empty-state"><div className="empty-title"><MarkdownInline>等待计算结果</MarkdownInline></div><div className="small"><MarkdownInline>填写当前步骤所需数据后，结果会在这里出现。</MarkdownInline></div></div>
             ) : (
               results.map((item) => <ResultCard key={item.id} item={item} profileName={profile.shortName} />)
             )}
@@ -403,7 +404,7 @@ export function ProjectWorkbenchPage() {
               <button
                 className="btn btn-sm"
                 onClick={() => download(new Blob([mdExport], { type: 'text/markdown' }), `${project.title}-数据处理.md`)}
-              >下载 .md</button>
+              ><MarkdownInline allowLinks={false}>下载 .md</MarkdownInline></button>
             </div>
             <pre style={{ maxHeight: 260, overflow: 'auto', fontSize: 12 }}>{mdExport.slice(0, 4000)}{mdExport.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
           </Panel>
@@ -420,14 +421,14 @@ export function ProjectWorkbenchPage() {
                   key={ds.id}
                   className="btn btn-sm"
                   onClick={() => download(new Blob(['\ufeff' + tableToCSV(ds, project)], { type: 'text/csv' }), `${ds.id}.csv`)}
-                >{ds.title} CSV</button>
+                ><MarkdownInline allowLinks={false}>{`${ds.title} CSV`}</MarkdownInline></button>
               ))}
               <button
                 className="btn btn-sm"
                 onClick={() => download(new Blob([serializeProject(project)], { type: 'application/json' }), `${project.title}.json`)}
-              >项目 JSON</button>
+              ><MarkdownInline allowLinks={false}>项目 JSON</MarkdownInline></button>
             </div>
-            <div className="small muted" style={{ marginTop: 6 }}>导出可选附带标准 profile、公式来源、修约规则与软件版本（Markdown 首部已包含）。</div>
+            <div className="small muted" style={{ marginTop: 6 }}><MarkdownInline>导出可选附带标准 `profile`、公式来源、修约规则与软件版本（Markdown 首部已包含）。</MarkdownInline></div>
           </Panel>
         </div>
       </Modal>

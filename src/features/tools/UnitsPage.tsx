@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { convert, convertTemperature, families, unitsOfFamily, tryGetUnitDef, DimensionMismatchError, dimensionToString } from '../../core/quantity';
 import { Panel } from '../../components/ui';
 import { useSettings } from '../../stores/settings';
+import { MarkdownInline } from '../../components/Markdown';
 
 export function UnitsPage() {
   const showDimensionCheck = useSettings((s) => s.showDimensionCheck);
@@ -33,13 +34,13 @@ export function UnitsPage() {
 
   return (
     <main className="page">
-      <h1>单位换算</h1>
-      <p className="muted">维度检查：不相容的单位拒绝换算；摄氏温度区分温度值与温差语义</p>
+      <h1><MarkdownInline>单位换算</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>维度检查：不相容的单位拒绝换算；摄氏温度区分温度值与温差语义</MarkdownInline></p>
       <div style={{ maxWidth: 620 }}>
         <Panel title="换算">
           <div className="form-grid">
             <div>
-              <div className="field-label">单位族</div>
+              <div className="field-label"><MarkdownInline>单位族</MarkdownInline></div>
               <select
                 className="select"
                 value={family}
@@ -56,17 +57,17 @@ export function UnitsPage() {
               </select>
             </div>
             <div>
-              <div className="field-label">数值</div>
+              <div className="field-label"><MarkdownInline>数值</MarkdownInline></div>
               <input className="input" value={value} inputMode="decimal" onChange={(e) => setValue(e.target.value)} />
             </div>
             <div>
-              <div className="field-label">从</div>
+              <div className="field-label"><MarkdownInline>从</MarkdownInline></div>
               <select className="select" value={from} onChange={(e) => setFrom(e.target.value)}>
                 {units.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
             <div>
-              <div className="field-label">到</div>
+              <div className="field-label"><MarkdownInline>到</MarkdownInline></div>
               <select className="select" value={to} onChange={(e) => setTo(e.target.value)}>
                 {units.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
@@ -74,27 +75,26 @@ export function UnitsPage() {
           </div>
           <div className="result-final" style={{ marginTop: 14 }}>
             {'error' in result ? (
-              <span style={{ color: 'var(--danger)' }}>{result.error}</span>
+              <span style={{ color: 'var(--danger)' }}><MarkdownInline>{result.error}</MarkdownInline></span>
             ) : (
               <>
-                <span className="value">{value} {from}</span>
+                <span className="value"><MarkdownInline>{`${value} ${from}`}</MarkdownInline></span>
                 <span className="unit">=</span>
-                <span className="value">{result.value.toPrecision(10)}</span>
-                <span className="unit">{to}</span>
+                <span className="value"><MarkdownInline>{result.value.toPrecision(10)}</MarkdownInline></span>
+                <span className="unit"><MarkdownInline>{to}</MarkdownInline></span>
               </>
             )}
           </div>
-          {'note' in result && result.note ? <div className="field-help">{result.note}（温差换算只缩放不偏置）</div> : null}
+          {'note' in result && result.note ? <div className="field-help"><MarkdownInline>{`${result.note}（温差换算只缩放不偏置）`}</MarkdownInline></div> : null}
           {showDimensionCheck && fromDef && toDef && (
             <div className="field-help" style={{ marginTop: 6 }}>
-              量纲：{fromDef.zh}（{dimensionStr(fromDef)}）→ {toDef.zh}（{dimensionStr(toDef)}）
+              <MarkdownInline>{`量纲：${fromDef.zh}（${dimensionStr(fromDef)}）→ ${toDef.zh}（${dimensionStr(toDef)}）`}</MarkdownInline>
             </div>
           )}
         </Panel>
         <div className="notice notice-info">
-          <span className="n-icon">ℹ</span>
           <div className="n-body">
-            内部计算统一 SI。单位换算往返不改变物理量（属性测试覆盖）。角度视为无量纲：rad=1、deg=π/180。
+            <MarkdownInline>内部计算统一 SI。单位换算往返不改变物理量（属性测试覆盖）。角度视为无量纲：`rad=1`、`deg=π/180`。</MarkdownInline>
           </div>
         </div>
       </div>

@@ -988,3 +988,316 @@ details.fold > .fold-body { padding: 2px 11px 11px; }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+
+/* ---------- Markdown UI 文本 ---------- */
+.md-inline { min-width: 0; }
+.md-inline code,
+.btn code,
+.badge code,
+.nav-item code,
+.m-item code {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--code-bg);
+  color: inherit;
+  font-size: 0.92em;
+}
+.md-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
+  text-underline-offset: 2px;
+}
+.md-link:hover { text-decoration-color: currentColor; }
+
+.md-block { min-width: 0; }
+.md-block > :first-child { margin-top: 0; }
+.md-block > :last-child { margin-bottom: 0; }
+.md-block p { margin: 0.48em 0; }
+.md-block h1,
+.md-block h2,
+.md-block h3,
+.md-block h4,
+.md-block h5,
+.md-block h6 {
+  margin: 0.9em 0 0.45em;
+}
+.md-block h1 { font-size: 1.45em; }
+.md-block h2 { font-size: 1.3em; }
+.md-block h3 { font-size: 1.16em; }
+.md-block h4,
+.md-block h5,
+.md-block h6 { font-size: 1em; }
+
+.md-block ul,
+.md-block ol,
+.md-list {
+  margin: 0.45em 0;
+  padding-left: 1.45rem;
+}
+.md-block li,
+.md-list li { margin: 0.22em 0; }
+.md-task-list { list-style: none; padding-left: 0.2rem !important; }
+.md-task-list li { display: flex; align-items: flex-start; gap: 7px; }
+.md-task-list input { margin-top: 0.31em; }
+
+.md-block blockquote {
+  margin: 0.65em 0;
+  padding: 0.1em 0 0.1em 0.85em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+.md-block hr {
+  margin: 0.85em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.md-math-block { margin: 0.6em 0; overflow-x: auto; }
+.md-table-wrap { max-width: 100%; overflow-x: auto; margin: 0.6em 0; }
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+.md-table th,
+.md-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.md-table th { background: var(--bg-sunken); font-weight: 680; }
+
+.btn .katex,
+.badge .katex,
+.nav-item .katex,
+.m-item .katex {
+  font-size: 1em;
+}
+
+
+/* ---------- Sidebar v2：分组导航 + 可收起桌面边栏 ---------- */
+.app-shell {
+  --sidebar-width: 240px;
+}
+.app-shell.sidebar-collapsed {
+  --sidebar-width: 76px;
+}
+.app-sidebar {
+  width: var(--sidebar-width);
+  flex-basis: var(--sidebar-width);
+  padding: 14px 12px 14px;
+  overflow-x: hidden;
+  transition: width 160ms ease, flex-basis 160ms ease, padding 160ms ease;
+}
+.sidebar-brand-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  padding: 0 2px 13px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-brand-row .brand {
+  min-width: 0;
+  padding: 0 4px;
+  gap: 10px;
+}
+.sidebar-brand-row .brand .logo {
+  width: 36px;
+  height: 36px;
+  flex-basis: 36px;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg-raised) 14%, transparent);
+}
+.sidebar-collapse-toggle {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+.sidebar-collapse-toggle:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+.sidebar-collapse-toggle:active { transform: scale(0.96); }
+.sidebar-collapse-toggle .md-inline { font-size: 20px; line-height: 1; }
+
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+}
+.sidebar-group { min-width: 0; }
+.sidebar-divider {
+  height: 1px;
+  margin: 1px 8px 0;
+  background: var(--border);
+}
+.nav-caption {
+  padding: 0 10px 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.sidebar-nav { gap: 4px; }
+.nav-item {
+  min-height: 44px;
+  gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+}
+.nav-item:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 72%, transparent);
+}
+.nav-item.active {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.nav-item.active::before { display: none; }
+.nav-mark {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.nav-item:hover .nav-mark {
+  color: var(--text-secondary);
+  border-color: var(--border-strong);
+}
+.nav-item.active .nav-mark {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-footer {
+  width: 100%;
+  padding: 14px 4px 2px;
+  border-top: 1px solid var(--border);
+  gap: 6px;
+}
+.sidebar-profile { max-width: 100%; overflow: hidden; }
+.sidebar-theme {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  margin-left: 0;
+  padding-left: 7px;
+  border-color: transparent;
+}
+.sidebar-theme-mark {
+  width: 24px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.sidebar-theme-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-privacy {
+  padding: 2px 7px 0;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+/* 收起后仅保留清晰、可点击的导航标记；布局宽度同步释放给主工作区。 */
+.sidebar-collapsed .app-sidebar { padding-left: 9px; padding-right: 9px; }
+.sidebar-collapsed .sidebar-brand-row {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 6px;
+  padding-bottom: 11px;
+}
+.sidebar-collapsed .sidebar-brand-row .brand {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar-collapsed .brand-copy,
+.sidebar-collapsed .nav-caption,
+.sidebar-collapsed .nav-label,
+.sidebar-collapsed .sidebar-profile,
+.sidebar-collapsed .sidebar-theme-label,
+.sidebar-collapsed .sidebar-privacy {
+  display: none;
+}
+.sidebar-collapsed .sidebar-collapse-toggle {
+  width: 38px;
+  height: 28px;
+}
+.sidebar-collapsed .sidebar-content {
+  gap: 8px;
+  padding-top: 12px;
+}
+.sidebar-collapsed .sidebar-divider { margin: 2px 7px; }
+.sidebar-collapsed .nav-item {
+  min-height: 44px;
+  justify-content: center;
+  padding: 7px;
+}
+.sidebar-collapsed .nav-mark {
+  width: 31px;
+  height: 31px;
+  flex-basis: 31px;
+}
+.sidebar-collapsed .sidebar-footer {
+  align-items: center;
+  padding: 12px 0 2px;
+}
+.sidebar-collapsed .sidebar-theme {
+  width: 40px;
+  min-height: 38px;
+  justify-content: center;
+  padding: 5px;
+}
+.sidebar-collapsed .sidebar-theme-mark {
+  width: 26px;
+  flex-basis: 26px;
+}
+
+/* 主内容在宽屏上稍微更舒展；折叠边栏时不额外限制内容宽度。 */
+.page {
+  padding-top: 34px;
+}
+.topbar {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (max-width: 900px) {
+  .app-shell,
+  .app-shell.sidebar-collapsed { --sidebar-width: 0px; }
+  .sidebar-collapse-toggle { display: none; }
+}

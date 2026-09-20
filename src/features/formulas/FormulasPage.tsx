@@ -8,6 +8,7 @@ import { FormulaCalculator } from '../../components/FormulaCalculator';
 import { Panel, EmptyState } from '../../components/ui';
 import { useSettings } from '../../stores/settings';
 import { Tex } from '../../components/katex';
+import { MarkdownInline } from '../../components/Markdown';
 
 export function FormulasPage() {
   const [query, setQuery] = useState('');
@@ -20,8 +21,8 @@ export function FormulasPage() {
 
   return (
     <main className="page">
-      <h1>公式工作台</h1>
-      <p className="muted">当前标准：<strong>{profileName}</strong> · 所有课程公式标注来源；通用扩展与课程规则严格区分</p>
+      <h1><MarkdownInline>公式工作台</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>{`当前标准：**${profileName}** · 所有课程公式标注来源；通用扩展与课程规则严格区分`}</MarkdownInline></p>
       <div className="row" style={{ margin: '12px 0' }}>
         <input
           className="input"
@@ -32,10 +33,10 @@ export function FormulasPage() {
         />
       </div>
       <div className="tabs">
-        <button className={`tab${category === '' ? ' active' : ''}`} onClick={() => setCategory('')}>全部</button>
+        <button className={`tab${category === '' ? ' active' : ''}`} onClick={() => setCategory('')}><MarkdownInline allowLinks={false}>全部</MarkdownInline></button>
         {listCategories().map((c) => (
           <button key={c} className={`tab${category === c ? ' active' : ''}`} onClick={() => setCategory(c)}>
-            {CATEGORY_LABELS[c]}
+            <MarkdownInline allowLinks={false}>{CATEGORY_LABELS[c]}</MarkdownInline>
           </button>
         ))}
       </div>
@@ -60,7 +61,7 @@ export function FormulaDetailPage() {
     return (
       <main className="page">
         <EmptyState icon="❓" title="未找到该公式" hint="返回公式列表重新选择" />
-        <button className="btn" onClick={() => navigate('/formulas')}>返回公式列表</button>
+        <button className="btn" onClick={() => navigate('/formulas')}><MarkdownInline allowLinks={false}>返回公式列表</MarkdownInline></button>
       </main>
     );
   }
@@ -68,9 +69,9 @@ export function FormulaDetailPage() {
   return (
     <main className="page">
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn btn-sm" onClick={() => navigate('/formulas')}>返回公式列表</button>
+        <button className="btn btn-sm" onClick={() => navigate('/formulas')}><MarkdownInline allowLinks={false}>返回公式列表</MarkdownInline></button>
       </div>
-      <h1>{formula.title}</h1>
+      <h1><MarkdownInline>{formula.title}</MarkdownInline></h1>
       <Panel title="公式" sub={`版本 v${formula.version}`}>
         <div className="fc-latex formula-detail-display">
           <Tex tex={formula.latex} display />

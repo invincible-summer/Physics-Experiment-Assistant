@@ -8,6 +8,7 @@ import { Panel } from '../../components/ui';
 import { makeResult } from '../../core/results';
 import { ResultCard } from '../../components/ResultInspector';
 import { PhysicsPlot } from '../../components/PhysicsPlot';
+import { MarkdownInline } from '../../components/Markdown';
 
 type Mode = 'inverse-square' | 'manual';
 
@@ -82,8 +83,8 @@ export function WeightedMeanPage() {
 
   return (
     <main className="page">
-      <h1>加权平均</h1>
-      <p className="muted">两列数据：x 与 u（或手动权重 w）。当前标准 {profile.shortName}（加权平均为通用扩展，与标准无关）</p>
+      <h1><MarkdownInline>加权平均</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>{`两列数据：\`x\` 与 \`u\`（或手动权重 \`w\`）。当前标准 **${profile.shortName}**（加权平均为通用扩展，与标准无关）`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="数据">
@@ -98,7 +99,7 @@ export function WeightedMeanPage() {
               onChange={(e) => setText(e.target.value)}
               placeholder={mode === 'inverse-square' ? 'x\tu\n9.42\t0.05\n9.48\t0.03' : 'x\tw\n9.42\t2\n9.48\t1'}
             />
-            <div className="field-help">两列（Tab/逗号分隔），可从 Excel 粘贴</div>
+            <div className="field-help"><MarkdownInline>两列（Tab/逗号分隔），可从 Excel 粘贴</MarkdownInline></div>
           </Panel>
           {result && !('error' in result) && result.valid.length > 0 && (
             <Panel title="权重占比">
@@ -118,9 +119,9 @@ export function WeightedMeanPage() {
         </div>
         <div className="stack">
           {result && 'error' in result ? (
-            <div className="notice notice-danger"><span className="n-icon">✕</span><div className="n-body">{result.error}</div></div>
+            <div className="notice notice-danger"><div className="n-body"><MarkdownInline>{result.error}</MarkdownInline></div></div>
           ) : resultItem ? <ResultCard item={resultItem} profileName={profile.shortName} /> : (
-            <Panel title="结果"><div className="empty-state"><div className="e-icon">⚖</div><div>输入数据后计算</div></div></Panel>
+            <Panel title="结果"><div className="empty-state"><div><MarkdownInline>输入数据后计算</MarkdownInline></div></div></Panel>
           )}
         </div>
       </div>

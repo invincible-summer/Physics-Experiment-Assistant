@@ -9,6 +9,7 @@ import { PhysicsPlot, PlotChecklist, PlotSeries } from '../../components/Physics
 import { Tex } from '../../components/katex';
 import { makeResult } from '../../core/results';
 import { ResultCard } from '../../components/ResultInspector';
+import { MarkdownInline } from '../../components/Markdown';
 
 type FitMode = 'ols' | 'origin' | 'weighted';
 
@@ -100,15 +101,15 @@ export function RegressionPage() {
 
   return (
     <main className="page">
-      <h1>线性拟合</h1>
-      <p className="muted">成对数据 + 拟合选项 → a/b/r/Sa/Sb/置信区间/残差图（当前标准 {profile.shortName}）</p>
+      <h1><MarkdownInline>线性拟合</MarkdownInline></h1>
+      <p className="muted"><MarkdownInline>{`成对数据 + 拟合选项 → \`a/b/r/Sa/Sb\` / 置信区间 / 残差图（当前标准 **${profile.shortName}**）`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="数据与选项">
             <PairInput label="x / y 数据（两列）" onChange={(xs, ys, rawXs, rawYs) => setData({ xs, ys, rawXs, rawYs })} />
             <div className="form-grid" style={{ marginTop: 10 }}>
               <div>
-                <div className="field-label">拟合方式</div>
+                <div className="field-label"><MarkdownInline>拟合方式</MarkdownInline></div>
                 <select className="select" value={mode} onChange={(e) => setMode(e.target.value as FitMode)}>
                   <option value="ols">普通最小二乘 y=a+bx</option>
                   <option value="origin">过原点 y=bx</option>
@@ -116,7 +117,7 @@ export function RegressionPage() {
                 </select>
               </div>
               <div>
-                <div className="field-label">x 变换</div>
+                <div className="field-label"><MarkdownInline>x 变换</MarkdownInline></div>
                 <select className="select" value={xTransform} onChange={(e) => setXTransform(e.target.value)}>
                   <option value="identity">x</option>
                   <option value="ln">ln x</option>
@@ -127,7 +128,7 @@ export function RegressionPage() {
                 </select>
               </div>
               <div>
-                <div className="field-label">y 变换</div>
+                <div className="field-label"><MarkdownInline>y 变换</MarkdownInline></div>
                 <select className="select" value={yTransform} onChange={(e) => setYTransform(e.target.value)}>
                   <option value="identity">y</option>
                   <option value="ln">ln y</option>
@@ -138,7 +139,7 @@ export function RegressionPage() {
                 </select>
               </div>
               <div>
-                <div className="field-label">x/y 对调</div>
+                <div className="field-label"><MarkdownInline>x/y 对调</MarkdownInline></div>
                 <select className="select" value={swapXY ? '1' : '0'} onChange={(e) => setSwapXY(e.target.value === '1')}>
                   <option value="0">否</option>
                   <option value="1">是</option>
@@ -147,17 +148,16 @@ export function RegressionPage() {
             </div>
             {mode === 'weighted' && (
               <div style={{ marginTop: 8 }}>
-                <div className="field-label">权重（每行一个，与数据点一一对应；通常 wi=1/ui²）</div>
+                <div className="field-label"><MarkdownInline>权重（每行一个，与数据点一一对应；通常 wi=1/ui²）</MarkdownInline></div>
                 <textarea className="textarea" rows={4} value={weightsText} onChange={(e) => setWeightsText(e.target.value)} placeholder="1\n0.5\n0.25" />
               </div>
             )}
             {analysis && 'error' in analysis && (
-              <div className="notice notice-danger" style={{ marginTop: 8 }}><span className="n-icon">✕</span><div className="n-body">{analysis.error}</div></div>
+              <div className="notice notice-danger" style={{ marginTop: 8 }}><div className="n-body"><MarkdownInline>{analysis.error}</MarkdownInline></div></div>
             )}
             {mode !== 'ols' && (
               <div className="notice notice-info" style={{ marginTop: 8 }}>
-                <span className="n-icon">ℹ</span>
-                <div className="n-body">加权拟合属于通用扩展，不冒充课程必需。</div>
+                <div className="n-body"><MarkdownInline>加权拟合属于通用扩展，不冒充课程必需。</MarkdownInline></div>
               </div>
             )}
           </Panel>
@@ -170,7 +170,7 @@ export function RegressionPage() {
         </div>
         <div className="stack">
           {resultItem ? <ResultCard item={resultItem} profileName={profile.shortName} /> : (
-            <Panel title="拟合结果"><div className="empty-state"><div className="e-icon">📈</div><div>至少输入 3 对数据</div></div></Panel>
+            <Panel title="拟合结果"><div className="empty-state"><div><MarkdownInline>至少输入 3 对数据</MarkdownInline></div></div></Panel>
           )}
           {analysis && !('error' in analysis) && (
             <Panel title="残差图">
@@ -186,7 +186,7 @@ export function RegressionPage() {
           )}
           <Panel title="课程公式视图">
             <Tex tex="S_b = |b|\sqrt{\dfrac{r^{-2}-1}{n-2}},\quad S_a = S_b\sqrt{\dfrac{\sum x_i^2}{n}},\quad \Delta = t_{0.95}(n{-}2)\,S" display />
-            <div className="small muted">普通 OLS 结果中的 Sb 已与该公式交叉验证一致。</div>
+            <div className="small muted"><MarkdownInline>普通 OLS 结果中的 `Sb` 已与该公式交叉验证一致。</MarkdownInline></div>
           </Panel>
         </div>
       </div>

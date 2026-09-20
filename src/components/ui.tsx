@@ -2,11 +2,12 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Provenance, PROVENANCE_LABELS } from '../standards/types';
 import { Tex } from './katex';
+import { MarkdownInline, MarkdownList, markdownInlineNode } from './Markdown';
 
 export type BadgeVariant = 'default' | 'accent' | 'success' | 'warning' | 'danger' | 'info';
 
 export function Badge({ variant = 'default', children, title }: { variant?: BadgeVariant; children: ReactNode; title?: string }) {
-  return <span className={`badge badge-${variant}`} title={title}>{children}</span>;
+  return <span className={`badge badge-${variant}`} title={title}>{markdownInlineNode(children)}</span>;
 }
 
 export function SourceBadge({ provenance }: { provenance: Provenance }) {
@@ -23,7 +24,7 @@ export function SourceBadge({ provenance }: { provenance: Provenance }) {
   ].filter(Boolean).join(' · ');
   return (
     <span className={`badge badge-source ${provenance.status} badge-${variant}`} title={title}>
-      {PROVENANCE_LABELS[provenance.status]}
+      <MarkdownInline>{PROVENANCE_LABELS[provenance.status]}</MarkdownInline>
     </span>
   );
 }
@@ -36,8 +37,8 @@ export function Panel({ title, sub, actions, children, id }: {
       {(title || actions) && (
         <div className="panel-title">
           <div className="panel-heading">
-            <span>{title}</span>
-            {sub && <span className="panel-sub">{sub}</span>}
+            <span>{markdownInlineNode(title)}</span>
+            {sub && <span className="panel-sub">{markdownInlineNode(sub)}</span>}
           </div>
           <span className="spacer" />
           {actions && <div className="panel-actions">{actions}</div>}
@@ -54,8 +55,8 @@ export function SafetyNotice({ items, compact = false }: { items: string[]; comp
     return (
       <div className="notice notice-warning" role="alert">
         <div className="n-body">
-          <div className="n-title">安全提示</div>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
+          <div className="n-title"><MarkdownInline>安全提示</MarkdownInline></div>
+          <MarkdownList items={items} />
         </div>
       </div>
     );
@@ -63,8 +64,8 @@ export function SafetyNotice({ items, compact = false }: { items: string[]; comp
   return (
     <div className="safety-banner" role="alert">
       <div>
-        <strong>安全须知（请先阅读，操作以教师现场要求为准）</strong>
-        <ul>{items.map((s, i) => <li key={i}>{s}</li>)}</ul>
+        <strong><MarkdownInline>安全须知（请先阅读，操作以教师现场要求为准）</MarkdownInline></strong>
+        <MarkdownList items={items} />
       </div>
     </div>
   );
@@ -92,7 +93,7 @@ export function CopyButton({ text, label = '复制', onCopied }: { text: string 
         setTimeout(() => setDone(false), 1400);
       }}
     >
-      {done ? '已复制' : label}
+      <MarkdownInline allowLinks={false}>{done ? '已复制' : label}</MarkdownInline>
     </button>
   );
 }
@@ -116,8 +117,8 @@ export function Modal({ open, onClose, title, children, wide }: {
     >
       <div className={`modal-card${wide ? ' modal-wide' : ''}`}>
         <div className="modal-head">
-          <span>{title}</span>
-          <button className="btn btn-sm btn-ghost" onClick={onClose}>关闭</button>
+          <span><MarkdownInline>{title}</MarkdownInline></span>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}><MarkdownInline allowLinks={false}>关闭</MarkdownInline></button>
         </div>
         <div className="modal-body">{children}</div>
       </div>
@@ -128,8 +129,8 @@ export function Modal({ open, onClose, title, children, wide }: {
 export function EmptyState({ title, hint }: { icon?: string; title: string; hint?: string }) {
   return (
     <div className="empty-state">
-      <div className="empty-title">{title}</div>
-      {hint && <div className="small">{hint}</div>}
+      <div className="empty-title"><MarkdownInline>{title}</MarkdownInline></div>
+      {hint && <div className="small"><MarkdownInline>{hint}</MarkdownInline></div>}
     </div>
   );
 }
@@ -169,7 +170,7 @@ export function ToastRegion() {
   if (list.length === 0) return null;
   return (
     <div className="toast-region" role="status">
-      {list.map((t) => <div key={t.id} className="toast">{t.text}</div>)}
+      {list.map((t) => <div key={t.id} className="toast"><MarkdownInline>{t.text}</MarkdownInline></div>)}
     </div>
   );
 }
@@ -196,7 +197,7 @@ export function ConfirmButton({ onConfirm, children, question, className = 'btn'
         onConfirm();
       }}
     >
-      {arm ? '再次点击确认' : children}
+      {arm ? <MarkdownInline allowLinks={false}>再次点击确认</MarkdownInline> : markdownInlineNode(children, false)}
     </button>
   );
 }
