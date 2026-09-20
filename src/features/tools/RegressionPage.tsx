@@ -102,7 +102,7 @@ export function RegressionPage() {
   return (
     <main className="page">
       <h1><MarkdownInline>线性拟合</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`成对数据 + 拟合选项 → `a/b/r/Sa/Sb` / 置信区间 / 残差图（当前标准 **${profile.shortName}**）`}</MarkdownInline></p>
+      <p className="muted"><MarkdownInline>{`成对数据 + 拟合选项 → \\`a/b/r/Sa/Sb\\` / 置信区间 / 残差图（当前标准 **${profile.shortName}**）`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="数据与选项">
