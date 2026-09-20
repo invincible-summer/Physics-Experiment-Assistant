@@ -273,7 +273,7 @@ export function ProjectWorkbenchPage() {
         return (
           <Panel title={spec.title}>
             {points.length === 0 ? (
-              <div className="empty-state"><div className="e-icon">📉</div><div>暂无有效数据点</div></div>
+              <div className="empty-state"><div className="empty-title">暂无有效数据点</div><div className="small">填写数据后将自动生成图表。</div></div>
             ) : (
               <>
                 <PhysicsPlot title={spec.title} xLabel={spec.xLabel} yLabel={spec.yLabel} series={series} />
@@ -299,7 +299,7 @@ export function ProjectWorkbenchPage() {
         );
       }
       case 'note':
-        return <div className="notice notice-info"><span className="n-icon">ℹ</span><div className="n-body">{block.text}</div></div>;
+        return <div className="notice notice-info"><div className="n-body">{block.text}</div></div>;
       case 'custom':
         if (block.component === 'forced-plots') {
           return <ForcedPlotsBlock series={computation?.custom['forced-series'] as never} />;
@@ -324,12 +324,12 @@ export function ProjectWorkbenchPage() {
     <AppShell
       topbar={
         <>
-          <button className="btn btn-sm" onClick={() => navigate('/projects')}>←</button>
+          <button className="btn btn-sm" onClick={() => navigate('/projects')}>返回项目</button>
           <span className="title">{project.title}</span>
           <Badge variant="default">{experiment.title}</Badge>
           <StandardProfileBadge />
-          <span className="save-dot" style={{ marginLeft: 8 }} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'} />
-          <button className="btn btn-sm" onClick={() => setInspectorOpen((v) => !v)}>{inspectorOpen ? '收起检查器' : '展开检查器'}</button>
+          <span className={`save-dot ${saveState}`} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'} />\n          <span className="save-label">{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中…' : '保存失败'}</span>
+          <button className="btn btn-sm" onClick={() => setInspectorOpen((v) => !v)}>{inspectorOpen ? '隐藏结果' : '显示结果'}</button>
           <button className="btn btn-sm btn-primary" onClick={() => setExportOpen(true)}>导出</button>
         </>
       }
@@ -377,7 +377,7 @@ export function ProjectWorkbenchPage() {
           <aside className="workbench-inspector" aria-label="结果检查器">
             <div className="panel-title">结果检查器
               <span className="spacer" style={{ flex: 1 }} />
-              <button className="btn btn-sm inspector-toggle" onClick={() => setInspectorOpen((v) => !v)}>×</button>
+              <button className="btn btn-sm btn-ghost inspector-toggle" onClick={() => setInspectorOpen(false)}>收起</button>
             </div>
             {computation && computation.diagnostics.length > 0 && (
               <div className="notice notice-warning">
@@ -389,7 +389,7 @@ export function ProjectWorkbenchPage() {
               </div>
             )}
             {results.length === 0 ? (
-              <div className="empty-state"><div className="e-icon">🧮</div><div>填写数据后显示计算结果</div></div>
+              <div className="empty-state"><div className="empty-title">等待计算结果</div><div className="small">填写当前步骤所需数据后，结果会在这里出现。</div></div>
             ) : (
               results.map((item) => <ResultCard key={item.id} item={item} profileName={profile.shortName} />)
             )}
