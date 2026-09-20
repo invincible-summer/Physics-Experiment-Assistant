@@ -7,11 +7,12 @@ import { ResultItem } from '../core/results';
 import { Tex } from './katex';
 import { SourceBadge } from './ui';
 import { useSettings } from '../stores/settings';
+import { MarkdownInline, MarkdownList } from './Markdown';
 
 export function ResultInspector({ results, profileName }: { results: ResultItem[]; profileName?: string }) {
   const showProvenance = useSettings((s) => s.showProvenance);
   if (results.length === 0) {
-    return <div className="empty-state"><div className="e-icon">🧮</div><div>等待输入数据后显示计算结果</div></div>;
+    return <div className="empty-state"><div><MarkdownInline>等待输入数据后显示计算结果</MarkdownInline></div></div>;
   }
   return (
     <div>
@@ -28,29 +29,27 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
   return (
     <div className="result-card">
       <div className="rc-head">
-        <span>{item.symbol ? <Tex tex={`${item.symbol} = `} /> : null}{item.title}</span>
+        <span>{item.symbol ? <Tex tex={`${item.symbol} = `} /> : null}<MarkdownInline>{item.title}</MarkdownInline></span>
         <span style={{ flex: 1 }} />
         {item.warnings && item.warnings.length > 0 && (
-          <span className="badge badge-warning" title={item.warnings.join('\n')}>⚠ {item.warnings.length}</span>
+          <span className="badge badge-warning" title={item.warnings.join('\n')}><MarkdownInline>{`警告 ${item.warnings.length}`}</MarkdownInline></span>
         )}
       </div>
       <div className="rc-body">
         {(item.finalText ?? item.finalValue !== undefined) && (
           <div className="result-final">
             {item.finalText ? (
-              <span className="value">{item.finalText}</span>
+              <span className="value"><MarkdownInline>{item.finalText}</MarkdownInline></span>
             ) : (
               <span className="value">{item.finalValue}</span>
             )}
-            {item.unit && <span className="unit">{item.unit}</span>}
-            {item.relativeText && <span className="rel">相对不确定度 {item.relativeText}</span>}
+            {item.unit && <span className="unit"><MarkdownInline>{item.unit}</MarkdownInline></span>}
+            {item.relativeText && <span className="rel"><MarkdownInline>{`相对不确定度 ${item.relativeText}`}</MarkdownInline></span>}
           </div>
         )}
         {item.ruleNotes && item.ruleNotes.length > 0 && (
           <Section label={`当前标准规则${profileName ? `（${profileName}）` : ''}`}>
-            <ul style={{ margin: 0, paddingLeft: 18 }}>
-              {item.ruleNotes.map((n, i) => <li key={i}>{n}</li>)}
-            </ul>
+            <MarkdownList items={item.ruleNotes} />
           </Section>
         )}
         {item.steps.length > 0 && (
@@ -58,9 +57,9 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
             {item.steps.map((s, i) => (
               <div key={i} style={{ marginBottom: 7 }}>
                 {s.formulaLatex && <div><Tex tex={s.formulaLatex} display /></div>}
-                {s.substitution && <div className="subst">{s.substitution}</div>}
-                {s.unrounded && <div className="subst" style={{ background: 'none', border: '1px dashed var(--border)' }}>未修约：{s.unrounded}</div>}
-                {s.note && <div className="small muted">{s.note}</div>}
+                {s.substitution && <div className="subst"><MarkdownInline>{s.substitution}</MarkdownInline></div>}
+                {s.unrounded && <div className="subst" style={{ background: 'none', border: '1px dashed var(--border)' }}><MarkdownInline>{`**未修约：**${s.unrounded}`}</MarkdownInline></div>}
+                {s.note && <div className="small muted"><MarkdownInline>{s.note}</MarkdownInline></div>}
               </div>
             ))}
           </Section>
@@ -72,23 +71,21 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
         )}
         {item.roundingNote && (
           <Section label="修约依据">
-            <div className="small">{item.roundingNote}</div>
+            <div className="small"><MarkdownInline>{item.roundingNote}</MarkdownInline></div>
           </Section>
         )}
         {showProvenance && item.provenance && (
           <Section label="来源">
             <div className="row">
               <SourceBadge provenance={item.provenance} />
-              {item.provenance.document && <span className="small muted">{item.provenance.document}</span>}
-              {item.provenance.section && <span className="small muted">{item.provenance.section}</span>}
+              {item.provenance.document && <span className="small muted"><MarkdownInline>{item.provenance.document}</MarkdownInline></span>}
+              {item.provenance.section && <span className="small muted"><MarkdownInline>{item.provenance.section}</MarkdownInline></span>}
             </div>
           </Section>
         )}
         {item.warnings && item.warnings.length > 0 && (
           <Section label="诊断提示">
-            <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--warning)' }}>
-              {item.warnings.map((w, i) => <li key={i}>{w}</li>)}
-            </ul>
+            <MarkdownList items={item.warnings} className="warning-list" />
           </Section>
         )}
       </div>
@@ -99,7 +96,7 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
 function Section({ label, children, defaultOpen = false }: { label: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
     <details className="fold" open={defaultOpen}>
-      <summary>{label}</summary>
+      <summary><MarkdownInline>{label}</MarkdownInline></summary>
       <div className="fold-body">{children}</div>
     </details>
   );
@@ -111,13 +108,13 @@ export function ContributionChart({ components }: { components: NonNullable<Resu
     <div style={{ overflowX: 'auto' }}>
       <table className="contrib-table">
         <thead>
-          <tr><th>分量</th><th>说明</th><th className="num">数值</th>{total > 0.001 ? <th style={{ minWidth: 90 }}>贡献率</th> : null}</tr>
+          <tr><th><MarkdownInline>分量</MarkdownInline></th><th><MarkdownInline>说明</MarkdownInline></th><th className="num"><MarkdownInline>数值</MarkdownInline></th>{total > 0.001 ? <th style={{ minWidth: 90 }}><MarkdownInline>贡献率</MarkdownInline></th> : null}</tr>
         </thead>
         <tbody>
           {components.map((c, i) => (
             <tr key={i}>
               <td><Tex tex={c.symbol} /></td>
-              <td>{c.label}{c.formulaLatex ? <span className="muted small"> · <Tex tex={c.formulaLatex} /></span> : null}</td>
+              <td><MarkdownInline>{c.label}</MarkdownInline>{c.formulaLatex ? <span className="muted small"> · <Tex tex={c.formulaLatex} /></span> : null}</td>
               <td className="num">{fmtNum(c.value)}</td>
               {total > 0.001 ? (
                 <td>
@@ -133,7 +130,7 @@ export function ContributionChart({ components }: { components: NonNullable<Resu
       </table>
       {components.some((c) => c.substitution) && (
         <div className="small muted" style={{ marginTop: 4 }}>
-          {components.filter((c) => c.substitution).map((c, i) => <div key={i}>{c.symbol}：{c.substitution}</div>)}
+          {components.filter((c) => c.substitution).map((c, i) => <div key={i}><MarkdownInline>{`${c.symbol}：${c.substitution}`}</MarkdownInline></div>)}
         </div>
       )}
     </div>
