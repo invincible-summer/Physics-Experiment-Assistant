@@ -131,7 +131,6 @@ export function ProjectWorkbenchPage() {
       case 'safety':
         return (
           <div className="safety-banner" role="alert">
-            <div className="sb-icon" aria-hidden>⚠️</div>
             <div>
               <strong>安全须知（操作以教师现场要求为准）</strong>
               <ul>{block.items.map((s, i) => <li key={i}>{s}</li>)}</ul>
@@ -160,7 +159,7 @@ export function ProjectWorkbenchPage() {
                     />
                     {field.hint && <div className="field-help">{field.hint}</div>}
                     {field.instrumentErrorNote && (
-                      <div className="field-help" style={{ color: 'var(--warning)' }}>ⓘ {field.instrumentErrorNote}</div>
+                      <div className="field-help" style={{ color: 'var(--warning)' }}>{field.instrumentErrorNote}</div>
                     )}
                   </div>
                 );
@@ -328,7 +327,8 @@ export function ProjectWorkbenchPage() {
           <span className="title">{project.title}</span>
           <Badge variant="default">{experiment.title}</Badge>
           <StandardProfileBadge />
-          <span className={`save-dot ${saveState}`} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'} />\n          <span className="save-label">{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中…' : '保存失败'}</span>
+          <span className={`save-dot ${saveState}`} title={saveState === 'saved' ? '已保存（本浏览器）' : saveState === 'saving' ? '保存中…' : '保存失败'} />
+          <span className="save-label">{saveState === 'saved' ? '已保存' : saveState === 'saving' ? '保存中…' : '保存失败'}</span>
           <button className="btn btn-sm" onClick={() => setInspectorOpen((v) => !v)}>{inspectorOpen ? '隐藏结果' : '显示结果'}</button>
           <button className="btn btn-sm btn-primary" onClick={() => setExportOpen(true)}>导出</button>
         </>
@@ -351,7 +351,6 @@ export function ProjectWorkbenchPage() {
           <main className="workbench-main">
             {migrationNote && (
               <div className="notice notice-warning" style={{ marginBottom: 12 }}>
-                <span className="n-icon">⚠</span>
                 <div className="n-body">{migrationNote}<button className="btn btn-sm btn-ghost" onClick={() => setMigrationNote(null)}>知道了</button></div>
               </div>
             )}
@@ -381,7 +380,6 @@ export function ProjectWorkbenchPage() {
             </div>
             {computation && computation.diagnostics.length > 0 && (
               <div className="notice notice-warning">
-                <span className="n-icon">⚠</span>
                 <div className="n-body">
                   <div className="n-title">数据诊断</div>
                   <ul style={{ margin: 0, paddingLeft: 18 }}>{computation.diagnostics.map((d, i) => <li key={i}>{d}</li>)}</ul>
