@@ -67,7 +67,7 @@ export function FormulaDetailPage() {
   return (
     <main className="page">
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn btn-sm" onClick={() => navigate('/formulas')}>← 公式列表</button>
+        <button className="btn btn-sm" onClick={() => navigate('/formulas')}>返回公式列表</button>
       </div>
       <h1>{formula.title}</h1>
       <Panel title="公式" sub={`版本 v${formula.version}`}>
