@@ -100,10 +100,12 @@ function parseInline(source: string, options: ParseOptions, keyPrefix = 'i'): Re
   const out: ReactNode[] = [];
   let last = 0;
   let index = 0;
-  INLINE_TOKEN.lastIndex = 0;
+  // A fresh RegExp per invocation is required because parseInline is recursive.
+  // Sharing lastIndex across nested calls would corrupt the outer parse.
+  const tokenRegex = new RegExp(INLINE_TOKEN.source, INLINE_TOKEN.flags);
 
   let match: RegExpExecArray | null;
-  while ((match = INLINE_TOKEN.exec(source)) !== null) {
+  while ((match = tokenRegex.exec(source)) !== null) {
     if (match.index > last) out.push(source.slice(last, match.index));
     const token = match[0];
     const key = `${keyPrefix}-${index++}`;
@@ -131,22 +133,26 @@ function parseInline(source: string, options: ParseOptions, keyPrefix = 'i'): Re
       );
     } else if (token.startsWith('[')) {
       const link = token.match(/^\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)$/);
-      if (link && options.allowLinks) {
-        const href = safeHref(link[2]);
-        if (href) {
-          const external = /^https?:\/\//i.test(href);
-          out.push(
-            <a
-              key={key}
-              href={href}
-              className="md-link"
-              {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
-            >
-              {parseInline(link[1], options, `${key}-link`)}
-            </a>,
-          );
+      if (link) {
+        if (!options.allowLinks) {
+          out.push(...parseInline(link[1], { ...options, allowLinks: false }, `${key}-plain-link`));
         } else {
-          out.push(parseInline(link[1], options, `${key}-unsafe-link`));
+          const href = safeHref(link[2]);
+          if (href) {
+            const external = /^https?:\/\//i.test(href);
+            out.push(
+              <a
+                key={key}
+                href={href}
+                className="md-link"
+                {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+              >
+                {parseInline(link[1], options, `${key}-link`)}
+              </a>,
+            );
+          } else {
+            out.push(...parseInline(link[1], options, `${key}-unsafe-link`));
+          }
         }
       } else {
         out.push(token);
@@ -164,7 +170,7 @@ function parseInline(source: string, options: ParseOptions, keyPrefix = 'i'): Re
       out.push(token);
     }
 
-    last = INLINE_TOKEN.lastIndex;
+    last = tokenRegex.lastIndex;
   }
 
   if (last < source.length) out.push(source.slice(last));
@@ -231,7 +237,7 @@ function parseBlocks(source: string, options: ParseOptions): ReactNode[] {
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
     if (heading) {
       const level = heading[1].length;
-      const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+      const Tag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
       out.push(<Tag key={key('h')}>{parseInline(heading[2], options)}</Tag>);
       i++;
       continue;
