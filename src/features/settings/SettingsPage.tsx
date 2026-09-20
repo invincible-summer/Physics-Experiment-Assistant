@@ -87,7 +87,7 @@ export function SettingsPage() {
                   <option value="1">允许</option><option value="0">不允许</option>
                 </select>
               </label>
-              <label className="small"><span className="field-label"><MarkdownInline>ΔA < ΔB/3 简化</MarkdownInline></span>
+              <label className="small"><span className="field-label"><MarkdownInline>{'ΔA < ΔB/3 简化'}</MarkdownInline></span>
                 <select className="select" value={settings.customOptions.simplificationEnabled ? '1' : '0'}
                   onChange={(e) => settings.setCustomOptions({ simplificationEnabled: e.target.value === '1' })}>
                   <option value="1">启用</option><option value="0">禁用</option>
