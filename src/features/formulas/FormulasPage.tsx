@@ -7,6 +7,7 @@ import { FormulaCard } from '../../components/FormulaCard';
 import { FormulaCalculator } from '../../components/FormulaCalculator';
 import { Panel, EmptyState } from '../../components/ui';
 import { useSettings } from '../../stores/settings';
+import { Tex } from '../../components/katex';
 
 export function FormulasPage() {
   const [query, setQuery] = useState('');
@@ -71,8 +72,8 @@ export function FormulaDetailPage() {
       </div>
       <h1>{formula.title}</h1>
       <Panel title="公式" sub={`版本 v${formula.version}`}>
-        <div className="fc-latex" style={{ padding: 12 }}>
-          {/* 只渲染第一个等式主体 */}
+        <div className="fc-latex formula-detail-display">
+          <Tex tex={formula.latex} display />
         </div>
         <FormulaCalculator formula={formula} resultSymbol={resultSymbol} resultUnit={RESULT_UNITS[formula.id] ?? ''} profileName={profileName} />
       </Panel>
