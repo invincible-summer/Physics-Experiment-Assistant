@@ -623,6 +623,29 @@ MVP 判定（§22）各条目状态：
 7. 不新增 npm 依赖；核心计算、profile、实验定义、持久化 schema 不改。
 8. `npm run typecheck`、`npm test`、`npm run build` 全通过后合并；GitHub Pages 部署成功。
 
+### 4.2.3 主边栏视觉优化与持久化收起
+
+桌面主边栏继续保持纯 CSS + React，不引入图标库或布局框架。边栏从单层文本列表调整为“工作区 / 系统”两组，使用极轻量字符标记增强扫视效率；展开态显示标记 + Markdown 标签，收起态仅保留标记并用原生 `title` 提供名称提示。
+
+状态由 `useSettings` 中新增的 `sidebarCollapsed: boolean` 保存到现有 `pea.settings` localStorage；因此刷新页面和重新打开浏览器后保留用户选择。收起仅影响桌面 `>900px` 布局，移动端继续使用底部导航，不复制第二套抽屉状态。
+
+布局约束：
+- 展开宽度约 240px；收起宽度约 76px，通过 CSS 变量 `--sidebar-width` 与 flex basis 同步切换，主内容自动获得释放出的横向空间。
+- 切换按钮常驻品牌区；可见符号仍经 `MarkdownInline` 渲染，`aria-label/title` 作为原生纯字符串可访问性例外。
+- 主导航 active 状态使用浅色背景 + 边框 + 实心标记，不依赖颜色之外的唯一信号；hover/focus 状态统一沿用设计 token。
+- footer 中标准徽章、隐私说明在收起态隐藏；主题切换保留紧凑标记，避免窄栏出现文本溢出。
+- `prefers-reduced-motion` 继续由全局规则抑制过渡；边栏动画只改变宽度、basis、padding，不做复杂 transform/阴影动画。
+- 小于 900px 时桌面边栏与收起按钮均隐藏，保持现有 mobile nav，避免同一页面出现两个主导航。
+
+验收标准：
+1. 点击收起按钮后桌面边栏宽度缩至约 76px，主内容宽度立即扩展；再次点击恢复。
+2. 刷新后保持上次折叠状态。
+3. 收起态所有主路由仍可点击，并能从 tooltip / `aria-label` 识别。
+4. 当前路由在展开态和收起态都具有明确 active 视觉。
+5. 900px 以下仍只显示移动端底栏，折叠偏好不破坏移动布局。
+6. 不增加 npm 依赖、不改实验计算逻辑、不改 IndexedDB 项目 schema。
+7. `npm run typecheck`、`npm test`、`npm run build` 通过后再合并。
+
 ## 4.3 数据表格
 
 核心交互：
