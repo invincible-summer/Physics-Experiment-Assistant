@@ -20,7 +20,7 @@ export function ExperimentsPage() {
           <div key={exp.id} className="panel exp-card">
             <div className="fc-title">
               <span>{exp.title}</span>
-              {exp.safety.length > 0 && <Badge variant="warning" title="含安全提示">⚠ 安全</Badge>}
+              {exp.safety.length > 0 && <Badge variant="warning" title="含安全提示">含安全提示</Badge>}
             </div>
             <div className="small muted">{exp.subtitle}</div>
             <div className="tags">
