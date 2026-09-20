@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as echarts from 'echarts';
 import { toast } from './ui';
+import { MarkdownInline, MarkdownList } from './Markdown';
 
 export interface PlotSeries {
   name: string;
@@ -219,8 +220,8 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
     <div>
       <div ref={elRef} style={{ width: '100%', height }} role="img" aria-label={`${title}：${xLabel} 对 ${yLabel} 图`} />
       <div className="row row-right" style={{ marginTop: 4 }}>
-        <button className="btn btn-sm" onClick={exportSVG}>导出 SVG</button>
-        <button className="btn btn-sm" onClick={exportPNG}>导出 PNG</button>
+        <button className="btn btn-sm" onClick={exportSVG}><MarkdownInline allowLinks={false}>导出 SVG</MarkdownInline></button>
+        <button className="btn btn-sm" onClick={exportPNG}><MarkdownInline allowLinks={false}>导出 PNG</MarkdownInline></button>
       </div>
     </div>
   );
@@ -240,14 +241,13 @@ export function PlotChecklist({ title, xLabel, yLabel, series }: {
   if (!hasPoints) issues.push('未显式显示数据点');
   if (series.length > 1 && !series.some((s) => s.dashed)) issues.push('多系列建议用不同点符/线型区分（本组件已自动区分）');
   if (issues.length === 0) {
-    return <div className="notice notice-success"><span className="n-icon">✓</span><div className="n-body">图表符合课程规范检查（轴名/单位/图名/数据点）</div></div>;
+    return <div className="notice notice-success"><div className="n-body"><MarkdownInline>图表符合课程规范检查（轴名/单位/图名/数据点）</MarkdownInline></div></div>;
   }
   return (
     <div className="notice notice-info">
-      <span className="n-icon">ℹ</span>
       <div className="n-body">
-        <div className="n-title">图表检查提示</div>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>{issues.map((s, i) => <li key={i}>{s}</li>)}</ul>
+        <div className="n-title"><MarkdownInline>图表检查提示</MarkdownInline></div>
+        <MarkdownList items={issues} />
       </div>
     </div>
   );
