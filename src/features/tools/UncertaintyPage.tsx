@@ -117,7 +117,7 @@ export function UncertaintyPage() {
   return (
     <main className="page">
       <h1><MarkdownInline>不确定度传播</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`输入 `Y = f(x₁, x₂, …)`，自动符号偏导 → 灵敏度系数 → 贡献 → 合成（当前标准 **${profile.shortName}**）`}</MarkdownInline></p>
+      <p className="muted"><MarkdownInline>{`输入 \\`Y = f(x₁, x₂, …)\\`，自动符号偏导 → 灵敏度系数 → 贡献 → 合成（当前标准 **${profile.shortName}**）`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="表达式">
