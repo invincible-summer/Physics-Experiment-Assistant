@@ -14,6 +14,7 @@ import { parseNumericText } from '../core/numeric';
 import { compileExpression, evaluateExpression } from '../core/expression';
 import { Tex } from './katex';
 import { toast } from './ui';
+import { MarkdownInline } from './Markdown';
 
 export interface GridColumn {
   id: string;
@@ -203,24 +204,24 @@ export function DataGrid({
 
   return (
     <div>
-      {title && <div className="panel-title">{title}</div>}
-      {hint && <div className="panel-sub" style={{ marginBottom: 6 }}>{hint}</div>}
+      {title && <div className="panel-title"><MarkdownInline>{title}</MarkdownInline></div>}
+      {hint && <div className="panel-sub" style={{ marginBottom: 6 }}><MarkdownInline>{hint}</MarkdownInline></div>}
       <div className="row" style={{ marginBottom: 8 }}>
-        <button className="btn btn-sm" onClick={() => addRow()}>添加一行</button>
+        <button className="btn btn-sm" onClick={() => addRow()}><MarkdownInline allowLinks={false}>添加一行</MarkdownInline></button>
         <button className="btn btn-sm" onClick={() => {
           const next = rows.map((r) => [...r]);
           while (next.length < defaultRows) next.push(columns.map(() => ''));
           if (next.length !== rows.length) pushHistory(next);
-        }}>补足 {defaultRows} 行</button>
-        <button className="btn btn-sm" onClick={undo} disabled={undoStack.current.length === 0}>撤销</button>
-        <button className="btn btn-sm" onClick={redo} disabled={redoStack.current.length === 0}>重做</button>
+        }}><MarkdownInline allowLinks={false}>{`补足 ${defaultRows} 行`}</MarkdownInline></button>
+        <button className="btn btn-sm" onClick={undo} disabled={undoStack.current.length === 0}><MarkdownInline allowLinks={false}>撤销</MarkdownInline></button>
+        <button className="btn btn-sm" onClick={redo} disabled={redoStack.current.length === 0}><MarkdownInline allowLinks={false}>重做</MarkdownInline></button>
         <span className="spacer" style={{ flex: 1 }} />
         <button
           className="btn btn-sm"
           onClick={async () => {
             try { await navigator.clipboard.writeText(markdownTable()); toast('已复制 Markdown 表格'); } catch { /* noop */ }
           }}
-        >复制为 Markdown</button>
+        ><MarkdownInline allowLinks={false}>复制为 Markdown</MarkdownInline></button>
       </div>
       <div className="grid-wrap">
         <table className="data-grid">
@@ -229,14 +230,14 @@ export function DataGrid({
               <th style={{ width: 44 }}>#</th>
               {columns.map((c) => (
                 <th key={c.id}>
-                  {c.header}
-                  {c.unit && <span className="col-unit">{c.unit}</span>}
+                  <MarkdownInline>{c.header}</MarkdownInline>
+                  {c.unit && <span className="col-unit"><MarkdownInline>{c.unit}</MarkdownInline></span>}
                   {c.kind === 'derived' && c.formulaLatex && (
                     <span className="col-unit" title={c.formulaLatex}><Tex tex={c.formulaLatex} display={false} /></span>
                   )}
                 </th>
               ))}
-              <th style={{ width: 118 }}>操作</th>
+              <th style={{ width: 118 }}><MarkdownInline>操作</MarkdownInline></th>
             </tr>
           </thead>
           <tbody>
@@ -278,8 +279,8 @@ export function DataGrid({
                   );
                 })}
                 <td className="grid-actions">
-                  <button className="btn btn-sm btn-ghost" onClick={() => addRow(r)}>插入</button>
-                  <button className="btn btn-sm btn-ghost btn-danger" onClick={() => removeRow(r)}>删除</button>
+                  <button className="btn btn-sm btn-ghost" onClick={() => addRow(r)}><MarkdownInline allowLinks={false}>插入</MarkdownInline></button>
+                  <button className="btn btn-sm btn-ghost btn-danger" onClick={() => removeRow(r)}><MarkdownInline allowLinks={false}>删除</MarkdownInline></button>
                 </td>
               </tr>
             ))}
@@ -288,7 +289,7 @@ export function DataGrid({
       </div>
       {focused && (
         <div className="small muted" style={{ marginTop: 4 }}>
-          Enter/Tab/方向键导航 · Ctrl+Z 撤销 · 可从 Excel 粘贴 TSV · 空缺显示 —，不会自动填 0
+          <MarkdownInline>Enter/Tab/方向键导航 · Ctrl+Z 撤销 · 可从 Excel 粘贴 TSV · 空缺显示 —，不会自动填 0</MarkdownInline>
         </div>
       )}
     </div>
