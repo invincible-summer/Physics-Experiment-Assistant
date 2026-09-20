@@ -69,7 +69,7 @@ export function FormulaDetailPage() {
   return (
     <main className="page">
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn btn-sm" onClick={() => navigate('/formulas')}>返回公式列表</button>
+        <button className="btn btn-sm" onClick={() => navigate('/formulas')}><MarkdownInline allowLinks={false}>返回公式列表</MarkdownInline></button>
       </div>
       <h1><MarkdownInline>{formula.title}</MarkdownInline></h1>
       <Panel title="公式" sub={`版本 v${formula.version}`}>
