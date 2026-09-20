@@ -11,7 +11,7 @@
  * This intentionally implements the UI subset we need instead of a full
  * CommonMark parser. Raw HTML and images are not rendered.
  */
-import { Fragment, ReactNode, useMemo } from 'react';
+import { Children, Fragment, ReactNode, useMemo } from 'react';
 import { Tex } from './katex';
 
 export interface MarkdownInlineProps {
@@ -81,6 +81,9 @@ export function MarkdownList({
 export function markdownInlineNode(node: ReactNode, allowLinks = true): ReactNode {
   if (typeof node === 'string' || typeof node === 'number') {
     return <MarkdownInline allowLinks={allowLinks}>{node}</MarkdownInline>;
+  }
+  if (Array.isArray(node)) {
+    return Children.map(node, (child) => markdownInlineNode(child, allowLinks));
   }
   return node;
 }
