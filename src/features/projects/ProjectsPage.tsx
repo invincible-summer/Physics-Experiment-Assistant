@@ -21,7 +21,7 @@ export function ProjectsPage() {
       <h1>项目</h1>
       <p className="muted">保存在本浏览器（IndexedDB）。schemaVersion 当前 v1，导入旧版本项目时自动迁移并提示。</p>
       <div className="row" style={{ marginBottom: 12 }}>
-        <button className="btn" onClick={() => navigate('/experiments')}>＋ 新建实验项目</button>
+        <button className="btn btn-primary" onClick={() => navigate('/experiments')}>新建实验项目</button>
         <button
           className="btn"
           onClick={() => download(new Blob([projects.map(serializeProject).join('\n')], { type: 'application/json' }), '全部项目备份.txt')}
