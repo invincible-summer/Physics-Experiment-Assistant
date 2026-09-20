@@ -988,3 +988,90 @@ details.fold > .fold-body { padding: 2px 11px 11px; }
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+
+/* ---------- Markdown UI 文本 ---------- */
+.md-inline { min-width: 0; }
+.md-inline code,
+.btn code,
+.badge code,
+.nav-item code,
+.m-item code {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--code-bg);
+  color: inherit;
+  font-size: 0.92em;
+}
+.md-link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 38%, transparent);
+  text-underline-offset: 2px;
+}
+.md-link:hover { text-decoration-color: currentColor; }
+
+.md-block { min-width: 0; }
+.md-block > :first-child { margin-top: 0; }
+.md-block > :last-child { margin-bottom: 0; }
+.md-block p { margin: 0.48em 0; }
+.md-block h1,
+.md-block h2,
+.md-block h3,
+.md-block h4,
+.md-block h5,
+.md-block h6 {
+  margin: 0.9em 0 0.45em;
+}
+.md-block h1 { font-size: 1.45em; }
+.md-block h2 { font-size: 1.3em; }
+.md-block h3 { font-size: 1.16em; }
+.md-block h4,
+.md-block h5,
+.md-block h6 { font-size: 1em; }
+
+.md-block ul,
+.md-block ol,
+.md-list {
+  margin: 0.45em 0;
+  padding-left: 1.45rem;
+}
+.md-block li,
+.md-list li { margin: 0.22em 0; }
+.md-task-list { list-style: none; padding-left: 0.2rem !important; }
+.md-task-list li { display: flex; align-items: flex-start; gap: 7px; }
+.md-task-list input { margin-top: 0.31em; }
+
+.md-block blockquote {
+  margin: 0.65em 0;
+  padding: 0.1em 0 0.1em 0.85em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+.md-block hr {
+  margin: 0.85em 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.md-math-block { margin: 0.6em 0; overflow-x: auto; }
+.md-table-wrap { max-width: 100%; overflow-x: auto; margin: 0.6em 0; }
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+.md-table th,
+.md-table td {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  vertical-align: top;
+}
+.md-table th { background: var(--bg-sunken); font-weight: 680; }
+
+.btn .katex,
+.badge .katex,
+.nav-item .katex,
+.m-item .katex {
+  font-size: 1em;
+}
