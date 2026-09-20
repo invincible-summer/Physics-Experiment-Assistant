@@ -38,7 +38,7 @@ export function CalculatorPage() {
   return (
     <main className="page">
       <h1><MarkdownInline>科学计算器</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`安全 AST 求值（无 `eval`）。当前角度模式：**${angleUnit === 'deg' ? '度（°）' : '弧度（rad）'}**（可在设置修改）`}</MarkdownInline></p>
+      <p className="muted"><MarkdownInline>{`安全 AST 求值（无 \\`eval\\`）。当前角度模式：**${angleUnit === 'deg' ? '度（°）' : '弧度（rad）'}**（可在设置修改）`}</MarkdownInline></p>
       <div style={{ maxWidth: 640 }}>
         <Panel title="表达式">
           <input
