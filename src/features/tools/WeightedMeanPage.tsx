@@ -84,7 +84,7 @@ export function WeightedMeanPage() {
   return (
     <main className="page">
       <h1><MarkdownInline>加权平均</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`两列数据：`x` 与 `u`（或手动权重 `w`）。当前标准 **${profile.shortName}**（加权平均为通用扩展，与标准无关）`}</MarkdownInline></p>
+      <p className="muted"><MarkdownInline>{`两列数据：\\`x\\` 与 \\`u\\`（或手动权重 \\`w\\`）。当前标准 **${profile.shortName}**（加权平均为通用扩展，与标准无关）`}</MarkdownInline></p>
       <div className="tool-layout">
         <div className="stack">
           <Panel title="数据">
