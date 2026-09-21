@@ -6,23 +6,39 @@ import { parseNumericText } from '../../core/numeric';
 import { formatSigDigitsPercent } from '../../core/sigfig';
 import { makeResult, ResultItem } from '../../core/results';
 import { useSettings } from '../../stores/settings';
-import { Button, EmptyState, Field, FormulaBlock, Notice, Panel } from '../../components/ui';
+import { Button, EmptyState, Field, FormulaBlock, Notice, Panel, toast } from '../../components/ui';
 import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { Tex } from '../../components/katex';
 import { QuantityInput } from '../../components/QuantityInput';
 import { ResultCard } from '../../components/ResultInspector';
+import { useToolDraft } from './use-tool-draft';
+import { PayloadBanner } from './PayloadBanner';
 
 type Outcome = { kind: 'ok'; item: ResultItem } | { kind: 'error'; error: string };
 
 /** 相关项每行：变量1 变量2 r（空白或逗号分隔），r ∈ [-1,1] */
 const CORRELATION_LINE = /^([A-Za-z_]\w*)[\s,]+([A-Za-z_]\w*)[\s,]+(-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)$/;
 
+interface UncDraft {
+  expression: string;
+  inputs: Record<string, { raw: string; uncRaw: string }>;
+  correlationsText: string;
+}
+
+const INITIAL_DRAFT: UncDraft = {
+  expression: 'pi/4 * (D^2 - d^2) * h',
+  inputs: {},
+  correlationsText: '',
+};
+
 export function UncertaintyPage() {
   const profile = useSettings((s) => s.activeProfile());
   const isGbt = profile.kind === 'gbt';
-  const [expression, setExpression] = useState('pi/4 * (D^2 - d^2) * h');
-  const [inputs, setInputs] = useState<Record<string, { raw: string; uncRaw: string }>>({});
-  const [correlationsText, setCorrelationsText] = useState('');
+  const [draft, setDraft] = useToolDraft<UncDraft>('uncertainty', INITIAL_DRAFT);
+  const { expression, inputs, correlationsText } = draft;
+  const setExpression = (v: string) => setDraft((d) => ({ ...d, expression: v }));
+  const setInputs = (fn: (s: UncDraft['inputs']) => UncDraft['inputs']) => setDraft((d) => ({ ...d, inputs: fn(d.inputs) }));
+  const setCorrelationsText = (v: string) => setDraft((d) => ({ ...d, correlationsText: v }));
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
 
@@ -215,6 +231,29 @@ export function UncertaintyPage() {
             <MarkdownInline>{switchNotice}</MarkdownInline>
           </Notice>
         )}
+
+        <PayloadBanner
+          accept="scalar"
+          onAccept={(p) => {
+            if (p.kind !== 'scalar') return;
+            // 优先按变量名匹配；否则填入第一个数值为空的变量
+            const target = variables.includes(p.name)
+              ? p.name
+              : variables.find((v) => (inputs[v]?.raw ?? '').trim() === '');
+            if (!target) {
+              toast('没有可填入的变量：请先输入含变量的表达式');
+              return;
+            }
+            setInputs((s) => ({
+              ...s,
+              [target]: {
+                raw: p.valueText,
+                uncRaw: p.uncText ?? s[target]?.uncRaw ?? '',
+              },
+            }));
+            toast(`已把 ${p.name} 填入变量 ${target}`);
+          }}
+        />
 
         <div className="tool-layout">
           <div className="stack">

@@ -5,6 +5,7 @@
  */
 import { ButtonHTMLAttributes, ReactNode, useEffect, useRef, useState } from 'react';
 import { Provenance, PROVENANCE_LABELS } from '../standards/types';
+import { Icon, IconName } from './Icon';
 import { Tex } from './katex';
 import { MarkdownInline, MarkdownList, markdownInlineNode } from './Markdown';
 
@@ -14,13 +15,16 @@ export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: 'md' | 'sm';
+  /** 可选前置图标（纯装饰，文字标签仍是主体） */
+  icon?: IconName;
 }
 
-export function Button({ variant = 'default', size = 'md', className = '', type = 'button', children, ...rest }: ButtonProps) {
+export function Button({ variant = 'default', size = 'md', className = '', type = 'button', icon, children, ...rest }: ButtonProps) {
   const cls = ['btn', variant !== 'default' && `btn-${variant}`, size === 'sm' && 'btn-sm', className]
     .filter(Boolean).join(' ');
   return (
     <button type={type} className={cls} {...rest}>
+      {icon && <Icon name={icon} size={size === 'sm' ? 14 : 15} />}
       {markdownInlineNode(children, false)}
     </button>
   );
@@ -55,15 +59,16 @@ export function SourceBadge({ provenance }: { provenance: Provenance }) {
 }
 
 /* ---------- 面板 ---------- */
-export function Panel({ title, sub, actions, children, id, className = '' }: {
-  title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string; className?: string;
+export function Panel({ title, sub, actions, children, id, className = '', icon, accent = false }: {
+  title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string;
+  className?: string; icon?: IconName; accent?: boolean;
 }) {
   return (
-    <section className={`panel${className ? ` ${className}` : ''}`} id={id}>
+    <section className={`panel${accent ? ' panel-accent' : ''}${className ? ` ${className}` : ''}`} id={id}>
       {(title || sub || actions) && (
         <div className="panel-head">
           <div className="panel-heading">
-            {title && <div className="panel-title">{markdownInlineNode(title)}</div>}
+            {title && <div className="panel-title">{icon && <Icon name={icon} size={16} />}{markdownInlineNode(title)}</div>}
             {sub && <div className="panel-sub">{markdownInlineNode(sub)}</div>}
           </div>
           {actions && <div className="panel-actions">{actions}</div>}
@@ -77,6 +82,13 @@ export function Panel({ title, sub, actions, children, id, className = '' }: {
 /* ---------- 提示 / 公告（全部走 Markdown 渲染，支持公式） ---------- */
 export type NoticeVariant = 'info' | 'success' | 'warning' | 'danger';
 
+const NOTICE_ICON: Record<NoticeVariant, IconName> = {
+  info: 'info',
+  success: 'check',
+  warning: 'alert',
+  danger: 'alert',
+};
+
 export function Notice({ variant = 'info', title, children, className = '' }: {
   variant?: NoticeVariant; title?: string; children: ReactNode; className?: string;
 }) {
@@ -86,7 +98,12 @@ export function Notice({ variant = 'info', title, children, className = '' }: {
       role={variant === 'warning' || variant === 'danger' ? 'alert' : undefined}
     >
       <div className="n-body">
-        {title && <div className="n-title"><MarkdownInline>{title}</MarkdownInline></div>}
+        {title && (
+          <div className="n-title">
+            <Icon name={NOTICE_ICON[variant]} />
+            <MarkdownInline>{title}</MarkdownInline>
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -142,6 +159,70 @@ export function CopyButton({ text, label = '复制', onCopied, size = 'sm' }: {
   );
 }
 
+/* ---------- 下拉菜单（点击外部/Escape 关闭；菜单项为文字按钮，可带装饰图标） ---------- */
+export interface MenuItem {
+  id: string;
+  label: string;
+  icon?: IconName;
+  disabled?: boolean;
+}
+
+export function Menu({ trigger, items, onSelect, size = 'sm', variant = 'default', align = 'right' }: {
+  trigger: ReactNode;
+  items: MenuItem[];
+  onSelect: (id: string) => void;
+  size?: 'md' | 'sm';
+  variant?: ButtonVariant;
+  align?: 'left' | 'right';
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <span className="menu-wrap" ref={wrapRef}>
+      <Button
+        size={size}
+        variant={variant}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {trigger}
+      </Button>
+      {open && (
+        <span className="menu-pop" role="menu" style={align === 'left' ? { left: 0, right: 'auto' } : undefined}>
+          {items.map((it) => (
+            <button
+              key={it.id}
+              role="menuitem"
+              className="menu-item"
+              disabled={it.disabled}
+              onClick={() => { setOpen(false); onSelect(it.id); }}
+            >
+              {it.icon && <Icon name={it.icon} size={15} />}
+              <MarkdownInline allowLinks={false}>{it.label}</MarkdownInline>
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /* ---------- 对话框 ---------- */
 export function Modal({ open, onClose, title, children, wide }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean;
@@ -169,9 +250,10 @@ export function Modal({ open, onClose, title, children, wide }: {
 }
 
 /* ---------- 空状态 ---------- */
-export function EmptyState({ title, hint, children }: { title: string; hint?: string; children?: ReactNode }) {
+export function EmptyState({ title, hint, icon, children }: { title: string; hint?: string; icon?: IconName; children?: ReactNode }) {
   return (
     <div className="empty-state">
+      {icon && <div className="empty-icon"><Icon name={icon} size={20} /></div>}
       <div className="empty-title"><MarkdownInline>{title}</MarkdownInline></div>
       {hint && <div className="small muted"><MarkdownInline>{hint}</MarkdownInline></div>}
       {children && <div className="empty-actions">{children}</div>}

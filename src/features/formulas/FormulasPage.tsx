@@ -9,6 +9,7 @@ import { RESULT_UNITS, resultSymbolFromLatex } from '../../formulas/result-units
 import { FormulaCard } from '../../components/FormulaCard';
 import { FormulaCalculator } from '../../components/FormulaCalculator';
 import { Badge, Button, EmptyState, FormulaBlock, Notice, Panel, SourceBadge, Tabs } from '../../components/ui';
+import { Icon } from '../../components/Icon';
 import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { Tex } from '../../components/katex';
 import { useSettings } from '../../stores/settings';
@@ -19,10 +20,11 @@ export function FormulasPage() {
   const profileName = useSettings((s) => s.activeProfile().shortName);
 
   const trimmed = query.trim();
-  const results = useMemo(
-    () => (trimmed ? searchFormulas(trimmed) : listFormulas(category || undefined)),
-    [trimmed, category],
-  );
+  // 搜索与分类取交集：有关键词时在搜索结果上再按分类过滤
+  const results = useMemo(() => {
+    const base = trimmed ? searchFormulas(trimmed) : listFormulas(category || undefined);
+    return trimmed && category ? base.filter((f) => f.category === category) : base;
+  }, [trimmed, category]);
   const total = useMemo(() => listFormulas().length, []);
   const tabs = useMemo(
     () => [
@@ -41,14 +43,17 @@ export function FormulasPage() {
         </p>
       </header>
       <div className="stack">
-        <input
-          className="search-input"
-          type="search"
-          placeholder="搜索公式名称、别名、符号…"
-          aria-label="搜索公式"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="search-input">
+          <Icon name="search" size={16} />
+          <input
+            className="input"
+            type="search"
+            placeholder="搜索公式名称、别名、符号…"
+            aria-label="搜索公式"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <Tabs
           tabs={tabs}
           active={category}
@@ -128,6 +133,7 @@ export function FormulaDetailPage() {
         )}
         <Panel title="计算" sub={`选择求解目标并填入数据；结果按 **${profileName}** 规则修约`}>
           <FormulaCalculator
+            key={formula.id}
             formula={formula}
             resultSymbol={resultSymbolFromLatex(formula.latex)}
             resultUnit={RESULT_UNITS[formula.id] ?? ''}

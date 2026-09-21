@@ -9,11 +9,13 @@ import { ExperimentsPage, NewExperimentProjectPage } from '../features/experimen
 import { ProjectWorkbenchPage } from '../features/experiments/ProjectWorkbenchPage';
 import { FormulasPage, FormulaDetailPage } from '../features/formulas/FormulasPage';
 import { StatisticsPage } from '../features/tools/StatisticsPage';
+import { ToolsIndexPage } from '../features/tools/ToolsIndexPage';
 import { RegressionPage } from '../features/tools/RegressionPage';
 import { UncertaintyPage } from '../features/tools/UncertaintyPage';
 import { WeightedMeanPage } from '../features/tools/WeightedMeanPage';
 import { CalculatorPage } from '../features/tools/CalculatorPage';
 import { UnitsPage } from '../features/tools/UnitsPage';
+import { PlotterPage } from '../features/tools/PlotterPage';
 import { ProjectsPage } from '../features/projects/ProjectsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { SourcesPage } from '../features/sources/SourcesPage';
@@ -44,12 +46,14 @@ export function App() {
         <Route path="/project/:projectId" element={<ProjectWorkbenchPage />} />
         <Route path="/formulas" element={<AppShell><FormulasPage /></AppShell>} />
         <Route path="/formulas/:formulaId" element={<AppShell><FormulaDetailPage /></AppShell>} />
+        <Route path="/tools" element={<AppShell><ToolsIndexPage /></AppShell>} />
         <Route path="/tools/statistics" element={<AppShell><StatisticsPage /></AppShell>} />
         <Route path="/tools/regression" element={<AppShell><RegressionPage /></AppShell>} />
         <Route path="/tools/uncertainty" element={<AppShell><UncertaintyPage /></AppShell>} />
         <Route path="/tools/weighted-mean" element={<AppShell><WeightedMeanPage /></AppShell>} />
         <Route path="/tools/calculator" element={<AppShell><CalculatorPage /></AppShell>} />
         <Route path="/tools/units" element={<AppShell><UnitsPage /></AppShell>} />
+        <Route path="/tools/plotter" element={<AppShell><PlotterPage /></AppShell>} />
         <Route path="/projects" element={<AppShell><ProjectsPage /></AppShell>} />
         <Route path="/settings" element={<AppShell><SettingsPage /></AppShell>} />
         <Route path="/sources" element={<AppShell><SourcesPage /></AppShell>} />

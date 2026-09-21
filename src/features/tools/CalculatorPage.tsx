@@ -1,9 +1,10 @@
-/** 科学计算器：core/expression 安全 AST 求值（无 eval），支持角度/弧度切换与最近 20 条历史。 */
+/** 科学计算器：core/expression 安全 AST 求值（无 eval），支持角度/弧度切换、Ans 回填与最近 20 条历史。 */
 import { useMemo, useState } from 'react';
 import { compileExpression, evaluateExpression } from '../../core/expression';
 import { Badge, Button, CopyButton, EmptyState, Panel } from '../../components/ui';
 import { MarkdownInline } from '../../components/Markdown';
 import { useSettings } from '../../stores/settings';
+import { useToolDraft } from './use-tool-draft';
 
 /** 键盘 token（5 列网格自动排布）；token 原样插入表达式，键面显示时去掉左括号。 */
 const PAD: string[] = [
@@ -17,11 +18,19 @@ const PAD: string[] = [
 
 type EvalResult = { value: number } | { error: string };
 
+interface CalcDraft {
+  text: string;
+  history: { expr: string; value: string }[];
+}
+
 export function CalculatorPage() {
   const angleUnit = useSettings((s) => s.angleUnit);
   const set = useSettings((s) => s.set);
-  const [text, setText] = useState('');
-  const [history, setHistory] = useState<{ expr: string; value: string }[]>([]);
+  const [draft, setDraft] = useToolDraft<CalcDraft>('calculator', { text: '', history: [] });
+  const { text, history } = draft;
+  const setText = (v: string | ((t: string) => string)) =>
+    setDraft((d) => ({ ...d, text: typeof v === 'function' ? v(d.text) : v }));
+  const [ans, setAns] = useState('');
 
   const result = useMemo<EvalResult | null>(() => {
     const src = text.trim();
@@ -42,8 +51,8 @@ export function CalculatorPage() {
   const commit = (replace: boolean) => {
     if (!result || !('value' in result)) return;
     const entry = { expr: text.trim(), value: String(result.value) };
-    setHistory((h) => [entry, ...h].slice(0, 20));
-    if (replace) setText(entry.value);
+    setAns(entry.value);
+    setDraft((d) => ({ ...d, history: [entry, ...d.history].slice(0, 20), text: replace ? entry.value : d.text }));
   };
 
   return (
@@ -66,7 +75,7 @@ export function CalculatorPage() {
       </header>
 
       <div className="stack-lg" style={{ maxWidth: 620 }}>
-        <Panel title="表达式" sub="Enter 计算并记入历史；= 记入历史并回填结果">
+        <Panel title="表达式" sub="Enter 计算并记入历史；= 记入历史并回填结果；Ans 插入上次结果">
           <input
             className="input mono"
             value={text}
@@ -93,17 +102,25 @@ export function CalculatorPage() {
             ))}
             <Button className="calc-key" title="退格" onClick={() => setText((t) => t.slice(0, -1))}>⌫</Button>
             <Button className="calc-key" title="清空输入" onClick={() => setText('')}>C</Button>
-            <Button variant="primary" className="calc-key" style={{ gridColumn: 'span 3' }} onClick={() => commit(true)}>=</Button>
+            <Button
+              className="calc-key"
+              title="插入上次计算结果"
+              disabled={ans === ''}
+              onClick={() => append(ans)}
+            >
+              Ans
+            </Button>
+            <Button variant="primary" className="calc-key" style={{ gridColumn: 'span 2' }} onClick={() => commit(true)}>=</Button>
           </div>
         </Panel>
 
         <Panel
           title="历史"
-          sub="最近 20 条"
-          actions={history.length > 0 ? <Button size="sm" onClick={() => setHistory([])}>清空</Button> : undefined}
+          sub="最近 20 条（本浏览器内保留）"
+          actions={history.length > 0 ? <Button size="sm" onClick={() => setDraft((d) => ({ ...d, history: [] }))}>清空</Button> : undefined}
         >
           {history.length === 0 ? (
-            <EmptyState title="暂无历史记录" hint="计算成功后按 Enter 或 = 将表达式与结果记入历史" />
+            <EmptyState icon="calculator" title="暂无历史记录" hint="计算成功后按 Enter 或 = 将表达式与结果记入历史" />
           ) : (
             <div className="stack">
               {history.map((h, i) => (
@@ -119,3 +136,4 @@ export function CalculatorPage() {
     </>
   );
 }
+

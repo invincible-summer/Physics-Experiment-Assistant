@@ -75,7 +75,7 @@ export const FrictionExperiment: ExperimentDefinition = {
       id: 'masses', title: '秤盘与砝码参数',
       blocks: [
         { type: 'params', fields: ['g', 'MW_B'], title: '重力加速度与 B 部分固定砝码' },
-        { type: 'note', text: 'W=MW·g、P=MP·g；内部以 mN（g×m/s²=中 1 g×9.8 m/s²=9.8 mN）显示，比例关系不受影响。' },
+        { type: 'note', text: 'W=MW·g、P=MP·g；内部以 mN 显示（1 g 砝码重力 ≈ 1 g × 9.8 m/s² = 9.8 mN），比例关系不受影响。' },
       ],
     },
     {

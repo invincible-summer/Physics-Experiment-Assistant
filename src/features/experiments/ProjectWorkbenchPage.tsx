@@ -7,8 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getProject, saveProject, StoredProject } from '../../persistence/db';
 import { getExperiment } from '../../experiments';
-import { ExperimentState, StepBlock } from '../../experiments/types';
-import { parseTable } from '../../experiments/engine';
+import { ExperimentComputation, ExperimentState, StepBlock } from '../../experiments/types';
+import { parseTable, stepStatuses } from '../../experiments/engine';
+import { parseNumericText } from '../../core/numeric';
+import { fitParameterDisplay } from '../../core/sigfig';
+import { fmtDisplay } from '../tools/fmt';
 import { useSettings } from '../../stores/settings';
 import { AppShell } from '../../app/shell/AppShell';
 import { StepNav } from '../../app/shell/StepNav';
@@ -20,7 +23,8 @@ import {
   Badge, Button, CopyButton, EmptyState, Field, FormulaBlock, Modal, Notice, Panel, SafetyNotice, Tabs, toast,
 } from '../../components/ui';
 import { Tex } from '../../components/katex';
-import { buildDataProcessingMarkdown, buildResultLatex, tableToCSV, serializeProject } from '../../export';
+import { buildDataProcessingMarkdown, tableToCSV, serializeProject } from '../../export';
+import { buildFullReportLatex, buildFullReportMarkdown } from '../../export/report';
 import { ForcedPlotsBlock, QuasiDiagnosticsBlock, MichelsonChecklistBlock } from './custom-blocks';
 import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 
@@ -36,7 +40,7 @@ export function ProjectWorkbenchPage() {
   const [stepIdx, setStepIdx] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportTab, setExportTab] = useState<'md' | 'latex' | 'data'>('md');
+  const [exportTab, setExportTab] = useState<'report-md' | 'report-latex' | 'md' | 'data'>('report-md');
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const saveTimer = useRef<number | undefined>(undefined);
 
@@ -55,16 +59,25 @@ export function ProjectWorkbenchPage() {
     return () => { alive = false; };
   }, [projectId]);
 
-  // 版本迁移提示（plan §13）
-  const [migrationNote, setMigrationNote] = useState<string | null>(null);
+  // 版本迁移提示（plan §13）：只提示，确认后才把版本标记写入项目（落盘可追溯）
+  const [migration, setMigration] = useState<{ note: string; versionBump: boolean } | null>(null);
+  const dismissedNote = useRef<string | null>(null);
   useEffect(() => {
     if (!project || !experiment) return;
+    let next: { note: string; versionBump: boolean } | null = null;
     if (project.experimentVersion !== undefined && project.experimentVersion < experiment.version) {
-      setMigrationNote(`实验定义已从 v${project.experimentVersion} 升级到 v${experiment.version}，旧数据按新定义解释前请核对`);
-      project.experimentVersion = experiment.version;
+      next = {
+        note: `实验定义已从 v${project.experimentVersion} 升级到 v${experiment.version}，旧数据按新定义解释前请核对；核对无误后点击下方按钮把版本标记写入项目。`,
+        versionBump: true,
+      };
     } else if (project.standardProfileId !== profile.id) {
-      setMigrationNote(`项目标准（${project.standardProfileId}）与当前全局标准（${profile.id}）不同。项目按保存时的标准计算，可在设置切换。`);
+      next = {
+        note: `项目标准（${project.standardProfileId}）与当前全局标准（${profile.id}）不同。项目按保存时的标准计算，可在设置切换。`,
+        versionBump: false,
+      };
     }
+    if (next && dismissedNote.current === next.note) return;
+    setMigration(next);
   }, [project, experiment, profile.id]);
 
   // 自动保存（防抖 800ms）；autosave 关闭时只标记 dirty，由「立即保存」手动落盘
@@ -99,24 +112,64 @@ export function ProjectWorkbenchPage() {
     });
   }, [scheduleSave]);
 
-  // 计算管线
-  const computation = useMemo(() => {
-    if (!project || !experiment) return null;
+  // 计算管线：失败时保留上次成功结果并给出醒目错误（绝不用 NaN 冒充结果，也不静默清空）
+  const [computation, setComputation] = useState<ExperimentComputation | null>(null);
+  const [computeError, setComputeError] = useState<string | null>(null);
+  const lastComputeErr = useRef<string | null>(null);
+  useEffect(() => {
+    if (!project || !experiment) return;
     const state: ExperimentState = {
       params: project.params,
       tables: project.tables,
       excludedRows: project.excludedRows,
     };
     try {
-      return experiment.compute(state, profile);
+      setComputation(experiment.compute(state, profile));
+      setComputeError(null);
+      lastComputeErr.current = null;
     } catch (err) {
-      toast(`计算失败：${(err as Error).message}`);
-      return null;
+      const msg = (err as Error).message;
+      setComputeError(msg);
+      if (lastComputeErr.current !== msg) {
+        toast(`计算失败：${msg}`);
+        lastComputeErr.current = msg;
+      }
     }
   }, [project, experiment, profile]);
 
+  // 步骤完成度（done/todo/attention）驱动 stepper 状态点与顶栏进度
+  const statuses = useMemo(() => {
+    if (!project || !experiment) return {};
+    const state: ExperimentState = {
+      params: project.params,
+      tables: project.tables,
+      excludedRows: project.excludedRows,
+    };
+    return stepStatuses(experiment, state, computation);
+  }, [experiment, project, computation]);
+
+  // 首次产生结果时自动展开一次检查器（之后完全由用户控制）
+  const autoOpenedInspector = useRef(false);
+  useEffect(() => {
+    if (autoOpenedInspector.current) return;
+    if (computation && computation.results.length > 0) {
+      autoOpenedInspector.current = true;
+      setInspectorOpen(true);
+    }
+  }, [computation]);
+
+  // 手动保存模式下存在未保存更改时，关闭/刷新页面前提示
+  useEffect(() => {
+    if (saveState !== 'dirty') return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [saveState]);
+
   const step = experiment?.steps[stepIdx];
   const results = computation?.results ?? [];
+  const warnCount = results.reduce((s, r) => s + (r.warnings?.length ?? 0), 0);
+  const doneSteps = experiment ? experiment.steps.filter((s) => statuses[s.id] === 'done').length : 0;
 
   if (loadError) {
     return (
@@ -161,14 +214,18 @@ export function ProjectWorkbenchPage() {
               {block.fields.map((fid) => {
                 const field = experiment.params.find((p) => p.id === fid);
                 if (!field) return null;
+                const raw = project.params[fid] ?? '';
+                const parsedNum = raw.trim() === '' ? null : parseNumericText(raw);
+                const invalid = field.kind !== 'text' && parsedNum !== null && !parsedNum.ok;
                 return (
-                  <Field key={fid} label={field.label} hint={field.hint}>
+                  <Field key={fid} label={field.label} hint={field.hint} error={invalid && parsedNum && !parsedNum.ok ? parsedNum.error : undefined}>
                     <div className="input-unit">
                       <input
-                        className="input"
-                        value={project.params[fid] ?? ''}
+                        className={`input${invalid ? ' invalid' : ''}`}
+                        value={raw}
                         placeholder={field.defaultText ?? ''}
                         inputMode={field.kind === 'text' ? 'text' : 'decimal'}
+                        aria-invalid={invalid || undefined}
                         onChange={(e) => updateProject((p) => { p.params[fid] = e.target.value; })}
                       />
                       {field.unit && <span className="unit-chip"><MarkdownInline>{field.unit}</MarkdownInline></span>}
@@ -226,31 +283,56 @@ export function ProjectWorkbenchPage() {
               }
               const ols = fit.ols;
               const org = fit.origin;
+              // 课程修约表达（绪论课规则：a 末位与 yi 取齐、b 与 xi 有效位一致）
+              let courseText: string | null = null;
+              if (ols) {
+                const ds = experiment.datasets.find((d) => d.id === spec.tableId);
+                if (ds) {
+                  const parsed = parseTable(ds, { params: project.params, tables: project.tables, excludedRows: project.excludedRows }, paramScope);
+                  const rawXs = parsed.rawRows.map((r) => r[spec.xCol] ?? '');
+                  const rawYs = parsed.rawRows.map((r) => r[spec.yCol] ?? '');
+                  const disp = fitParameterDisplay(ols.a, ols.b, rawXs, rawYs);
+                  courseText = `a = ${disp.aText}，b = ${disp.bText}，r = ${fmtDisplay(ols.r, 4)}`;
+                }
+              }
               return (
                 <Panel
                   key={fid}
                   title={spec.title}
                   sub={ols ? `$n=${ols.n}$，$\\nu=${ols.dof}$` : org ? `$n=${org.n}$，$\\nu=${org.dof}$` : ''}
+                  actions={ols || org ? (
+                    <CopyButton
+                      label="复制拟合结果"
+                      text={courseText
+                        ? `${spec.title}：y = a + bx，${courseText}`
+                        : `${spec.title}：y = bx，b = ${fmtDisplay(org!.b)}，Δb = ${fmtDisplay(org!.deltaB)}`}
+                    />
+                  ) : undefined}
                 >
                   <FormulaBlock latex={spec.modelLatex} />
                   {ols ? (
                     <table className="stat-table" style={{ marginTop: 8 }}>
                       <tbody>
-                        <tr><th><Tex tex="a" /></th><td className="num">{ols.a.toPrecision(8)}</td><th><Tex tex="b" /></th><td className="num">{ols.b.toPrecision(8)}</td></tr>
-                        <tr><th><Tex tex="r" /></th><td className="num">{ols.r.toPrecision(6)}</td><th><Tex tex="t" /></th><td className="num">{ols.t.toPrecision(6)}</td></tr>
-                        <tr><th><Tex tex="S_a" /></th><td className="num">{ols.sa.toPrecision(8)}</td><th><Tex tex="S_b" /></th><td className="num">{ols.sb.toPrecision(8)}</td></tr>
-                        <tr><th><Tex tex="\Delta a = t\,S_a" /></th><td className="num">{ols.deltaA.toPrecision(8)}</td><th><Tex tex="\Delta b = t\,S_b" /></th><td className="num">{ols.deltaB.toPrecision(8)}</td></tr>
-                        <tr><th><Tex tex="\mathrm{SSE}" /></th><td className="num">{ols.sse.toPrecision(8)}</td><th><Tex tex="S" /></th><td className="num">{ols.s.toPrecision(8)}</td></tr>
+                        <tr><th><Tex tex="a" /></th><td className="num">{fmtDisplay(ols.a, 8)}</td><th><Tex tex="b" /></th><td className="num">{fmtDisplay(ols.b, 8)}</td></tr>
+                        <tr><th><Tex tex="r" /></th><td className="num">{fmtDisplay(ols.r, 8)}</td><th><Tex tex="t" /></th><td className="num">{fmtDisplay(ols.t)}</td></tr>
+                        <tr><th><Tex tex="S_a" /></th><td className="num">{fmtDisplay(ols.sa, 8)}</td><th><Tex tex="S_b" /></th><td className="num">{fmtDisplay(ols.sb, 8)}</td></tr>
+                        <tr><th><Tex tex="\Delta a = t\,S_a" /></th><td className="num">{fmtDisplay(ols.deltaA, 8)}</td><th><Tex tex="\Delta b = t\,S_b" /></th><td className="num">{fmtDisplay(ols.deltaB, 8)}</td></tr>
+                        <tr><th><Tex tex="\mathrm{SSE}" /></th><td className="num">{fmtDisplay(ols.sse, 8)}</td><th><Tex tex="S" /></th><td className="num">{fmtDisplay(ols.s, 8)}</td></tr>
                       </tbody>
                     </table>
                   ) : org ? (
                     <table className="stat-table" style={{ marginTop: 8 }}>
                       <tbody>
-                        <tr><th><Tex tex="b" /></th><td className="num">{org.b.toPrecision(8)}</td><th><Tex tex="R^2" /></th><td className="num">{org.r2.toPrecision(6)}</td></tr>
-                        <tr><th><Tex tex="S_b" /></th><td className="num">{org.sb.toPrecision(8)}</td><th><Tex tex="\Delta b = t\,S_b" /></th><td className="num">{org.deltaB.toPrecision(8)}</td></tr>
+                        <tr><th><Tex tex="b" /></th><td className="num">{fmtDisplay(org.b, 8)}</td><th><Tex tex="R^2" /></th><td className="num">{fmtDisplay(org.r2, 8)}</td></tr>
+                        <tr><th><Tex tex="S_b" /></th><td className="num">{fmtDisplay(org.sb, 8)}</td><th><Tex tex="\Delta b = t\,S_b" /></th><td className="num">{fmtDisplay(org.deltaB, 8)}</td></tr>
                       </tbody>
                     </table>
                   ) : null}
+                  {courseText && (
+                    <div className="small" style={{ marginTop: 8 }}>
+                      <MarkdownInline>{`**课程修约表达：**${courseText}`}</MarkdownInline>
+                    </div>
+                  )}
                   <div className="small muted" style={{ marginTop: 6 }}><MarkdownInline>课程模式首先显示 $r$；$R^2$ 为工程扩展指标。</MarkdownInline></div>
                 </Panel>
               );
@@ -267,6 +349,7 @@ export function ProjectWorkbenchPage() {
           .map((r) => ({ x: r[spec.xCol], y: r[spec.yCol] }))
           .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
         const series: PlotSeries[] = [{ name: '数据点', points, type: 'scatter' }];
+        const annotations: { text: string }[] = [];
         if (spec.fitId) {
           const fitRaw = computation?.fits[spec.fitId];
           const fit = fitRaw && 'spec' in fitRaw ? fitRaw : undefined;
@@ -279,6 +362,10 @@ export function ProjectWorkbenchPage() {
               name: spec.fitLabel ?? '拟合线', type: 'line', dashed: true, showSymbol: false,
               points: [min - pad, max + pad].map((x) => ({ x, y: fit.ols!.a + fit.ols!.b * x })),
             });
+            annotations.push(
+              { text: `y = ${fmtDisplay(fit.ols.a, 4)} + ${fmtDisplay(fit.ols.b, 4)}·x` },
+              { text: `r = ${fmtDisplay(fit.ols.r, 5)}` },
+            );
           } else if (fit && fit.origin && points.length > 1) {
             const xs = points.map((p) => p.x);
             const min = Math.min(...xs);
@@ -287,15 +374,16 @@ export function ProjectWorkbenchPage() {
               name: spec.fitLabel ?? '拟合线（过原点）', type: 'line', dashed: true, showSymbol: false,
               points: [Math.min(0, min), max * 1.05].map((x) => ({ x, y: fit.origin!.b * x })),
             });
+            annotations.push({ text: `y = ${fmtDisplay(fit.origin.b, 4)}·x` });
           }
         }
         return (
           <Panel title={spec.title}>
             {points.length === 0 ? (
-              <EmptyState title="暂无有效数据点" hint="填写数据后将自动生成图表。" />
+              <EmptyState icon="chart" title="暂无有效数据点" hint="填写数据后将自动生成图表。" />
             ) : (
               <>
-                <PhysicsPlot title={spec.title} xLabel={spec.xLabel} yLabel={spec.yLabel} series={series} />
+                <PhysicsPlot title={spec.title} xLabel={spec.xLabel} yLabel={spec.yLabel} series={series} annotations={annotations.length > 0 ? annotations : undefined} />
                 <PlotChecklist title={spec.title} xLabel={spec.xLabel} yLabel={spec.yLabel} series={series} />
               </>
             )}
@@ -309,7 +397,13 @@ export function ProjectWorkbenchPage() {
           <div className="stack">
             {items.map((item) => <ResultCard key={item.id} item={item} profileName={profile.shortName} />)}
             {missing.length > 0 && (
-              <EmptyState title="待计算" hint={`缺少所需数据或参数：${missing.join('、')}`} />
+              <EmptyState
+                icon="target"
+                title={`还有 ${missing.length} 项结果待生成`}
+                hint={settings.expertMode
+                  ? `补齐本步骤数据后自动生成（内部 id：${missing.join('、')}）`
+                  : '补齐本步骤的数据与参数后，结果会自动出现在这里'}
+              />
             )}
           </div>
         );
@@ -340,6 +434,12 @@ export function ProjectWorkbenchPage() {
   const mdExport = computation
     ? buildDataProcessingMarkdown(project, experiment, computation, profile, settings.mathStyle)
     : '';
+  const reportMd = computation
+    ? buildFullReportMarkdown(project, experiment, computation, profile, { mathStyle: settings.mathStyle })
+    : '';
+  const reportTex = computation
+    ? buildFullReportLatex(project, experiment, computation, profile)
+    : '';
 
   const saveLabel =
     (saveState === 'saved' ? '已保存'
@@ -357,10 +457,16 @@ export function ProjectWorkbenchPage() {
       wide
       topbar={
         <>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/projects')}>返回项目</Button>
+          <Button variant="ghost" size="sm" icon="arrow-left" onClick={() => navigate('/projects')}>返回项目</Button>
           <span className="topbar-title"><MarkdownInline>{project.title}</MarkdownInline></span>
           <Badge variant="default">{experiment.title}</Badge>
           <StandardProfileBadge />
+          <span className="topbar-progress" title={`步骤完成度：${doneSteps}/${experiment.steps.length} 步已就绪`}>
+            <MarkdownInline>{`第 ${stepIdx + 1}/${experiment.steps.length} 步`}</MarkdownInline>
+            <span className="progress-track" style={{ width: 72 }}>
+              <span className="progress-fill" style={{ width: `${Math.round((doneSteps / experiment.steps.length) * 100)}%`, display: 'block' }} />
+            </span>
+          </span>
           <span className={`save-state ${saveState}`} title={saveTitle}>
             <span className="save-dot" />
             <MarkdownInline>{saveLabel}</MarkdownInline>
@@ -369,15 +475,17 @@ export function ProjectWorkbenchPage() {
             <Button variant="ghost" size="sm" onClick={saveNow}>立即保存</Button>
           )}
           <span className="spacer" />
-          <Button size="sm" onClick={() => setInspectorOpen((v) => !v)}>{inspectorOpen ? '隐藏结果' : '显示结果'}</Button>
-          <Button variant="primary" size="sm" onClick={() => setExportOpen(true)}>导出</Button>
+          <Button size="sm" icon="panel-left" onClick={() => setInspectorOpen((v) => !v)}>
+            {inspectorOpen ? '隐藏结果' : `结果 ${results.length}${warnCount > 0 ? ` · 警告 ${warnCount}` : ''}`}
+          </Button>
+          <Button variant="primary" size="sm" icon="download" onClick={() => setExportOpen(true)}>导出</Button>
         </>
       }
     >
       <div className={`workbench${inspectorOpen ? '' : ' inspector-hidden'}`}>
         <div className="wb-steps">
           <StepNav
-            steps={experiment.steps.map((s) => ({ id: s.id, title: s.title }))}
+            steps={experiment.steps.map((s) => ({ id: s.id, title: s.title, status: statuses[s.id] }))}
             currentId={step?.id ?? ''}
             onSelect={(id) => {
               const i = experiment.steps.findIndex((s) => s.id === id);
@@ -386,12 +494,35 @@ export function ProjectWorkbenchPage() {
           />
         </div>
         <div className="wb-main">
-          {migrationNote && (
+          {migration && (
             <Notice variant="warning" title="版本提示">
-              <MarkdownBlock>{migrationNote}</MarkdownBlock>
+              <MarkdownBlock>{migration.note}</MarkdownBlock>
               <div className="row" style={{ marginTop: 8 }}>
-                <Button size="sm" variant="ghost" onClick={() => setMigrationNote(null)}>知道了</Button>
+                {migration.versionBump && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      updateProject((p) => { p.experimentVersion = experiment.version; });
+                      dismissedNote.current = migration.note;
+                      setMigration(null);
+                      toast('已把实验定义版本写入项目');
+                    }}
+                  >已核对，标记为新版本</Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    dismissedNote.current = migration.note;
+                    setMigration(null);
+                  }}
+                >知道了</Button>
               </div>
+            </Notice>
+          )}
+          {computeError && (
+            <Notice variant="danger" title="计算管线出错">
+              <MarkdownBlock>{`最近一次计算失败：${computeError}。${computation ? '下方显示的是**上一次成功**的结果，请修正标红的输入后再看结果。' : '请检查标红的输入单元格与参数。'}`}</MarkdownBlock>
             </Notice>
           )}
           {step?.id === experiment.steps[0].id && experiment.metadataFields.length > 0 && (
@@ -417,6 +548,26 @@ export function ProjectWorkbenchPage() {
               <MarkdownList items={computation.diagnostics} />
             </Notice>
           )}
+          <div className="step-pager">
+            <Button
+              variant="ghost"
+              icon="arrow-left"
+              disabled={stepIdx === 0}
+              onClick={() => setStepIdx((i) => Math.max(0, i - 1))}
+            >上一步</Button>
+            <span className="small muted">
+              <MarkdownInline>{
+                statuses[step?.id ?? ''] === 'done' ? '本步骤已就绪'
+                  : statuses[step?.id ?? ''] === 'attention' ? '本步骤有需要处理的问题'
+                  : '本步骤待完成'
+              }</MarkdownInline>
+            </span>
+            {stepIdx < experiment.steps.length - 1 ? (
+              <Button variant="primary" icon="arrow-right" onClick={() => setStepIdx((i) => Math.min(experiment.steps.length - 1, i + 1))}>下一步</Button>
+            ) : (
+              <Button variant="primary" icon="download" onClick={() => setExportOpen(true)}>去导出</Button>
+            )}
+          </div>
         </div>
         {inspectorOpen && (
           <aside className="wb-inspector" aria-label="结果检查器">
@@ -425,6 +576,23 @@ export function ProjectWorkbenchPage() {
               actions={<Button size="sm" variant="ghost" onClick={() => setInspectorOpen(false)}>收起</Button>}
             >
               <ResultInspector results={results} profileName={profile.shortName} />
+              {project.auditLog.length > 0 && (
+                <details className="fold" style={{ marginTop: 10 }}>
+                  <summary><MarkdownInline>{`审计日志（${project.auditLog.length} 条）`}</MarkdownInline></summary>
+                  <div className="fold-body">
+                    <div className="stack" style={{ gap: 4 }}>
+                      {[...project.auditLog].reverse().slice(0, 50).map((entry, i) => (
+                        <div key={i} className="small muted">
+                          <MarkdownInline>{`**${entry.action}**${entry.detail ? ` — ${entry.detail}` : ''}（${formatAuditTime(entry.at)}）`}</MarkdownInline>
+                        </div>
+                      ))}
+                      {project.auditLog.length > 50 && (
+                        <div className="small faint"><MarkdownInline>仅显示最近 50 条</MarkdownInline></div>
+                      )}
+                    </div>
+                  </div>
+                </details>
+              )}
             </Panel>
           </aside>
         )}
@@ -434,14 +602,35 @@ export function ProjectWorkbenchPage() {
         <div className="stack">
           <Tabs
             tabs={[
-              { id: 'md', label: '数据处理 Markdown' },
-              { id: 'latex', label: '结果 LaTeX' },
+              { id: 'report-md', label: '完整报告 Markdown' },
+              { id: 'report-latex', label: '完整报告 LaTeX' },
+              { id: 'md', label: '数据处理片段' },
               { id: 'data', label: '表格 CSV / 项目 JSON' },
             ]}
             active={exportTab}
-            onChange={(id) => setExportTab(id as 'md' | 'latex' | 'data')}
+            onChange={(id) => setExportTab(id as 'report-md' | 'report-latex' | 'md' | 'data')}
             ariaLabel="导出内容"
           />
+          {exportTab === 'report-md' && (
+            <>
+              <div className="row">
+                <CopyButton text={() => reportMd} label="复制完整报告" />
+                <Button size="sm" onClick={() => download(new Blob([reportMd], { type: 'text/markdown' }), `${project.title}-实验报告.md`)}>下载 .md</Button>
+              </div>
+              <div className="small muted"><MarkdownInline>含实验信息、参数、数据表、拟合、全部计算过程、规则摘要、诊断与审计日志；主观结论由实验者补充。</MarkdownInline></div>
+              <pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 12 }}>{reportMd.slice(0, 4000)}{reportMd.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
+            </>
+          )}
+          {exportTab === 'report-latex' && (
+            <>
+              <div className="row">
+                <CopyButton text={() => reportTex} label="复制 LaTeX 源码" />
+                <Button size="sm" onClick={() => download(new Blob([reportTex], { type: 'text/x-tex' }), `${project.title}-实验报告.tex`)}>下载 .tex</Button>
+              </div>
+              <div className="small muted"><MarkdownInline>{'完整可编译文档（ctexart + booktabs，建议 XeLaTeX 编译）；单位样式跟随设置（`\\mathrm{}` / `\\text{}`）。'}</MarkdownInline></div>
+              <pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 12 }}>{reportTex.slice(0, 4000)}{reportTex.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
+            </>
+          )}
           {exportTab === 'md' && (
             <>
               <div className="row">
@@ -449,14 +638,6 @@ export function ProjectWorkbenchPage() {
                 <Button size="sm" onClick={() => download(new Blob([mdExport], { type: 'text/markdown' }), `${project.title}-数据处理.md`)}>下载 .md</Button>
               </div>
               <pre style={{ maxHeight: 260, overflow: 'auto', fontSize: 12 }}>{mdExport.slice(0, 4000)}{mdExport.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
-            </>
-          )}
-          {exportTab === 'latex' && (
-            <>
-              <div className="row">
-                <CopyButton text={() => computation ? buildResultLatex(computation) : ''} label="复制 LaTeX" />
-              </div>
-              <pre style={{ maxHeight: 260, overflow: 'auto', fontSize: 12 }}>{computation ? buildResultLatex(computation) : '—'}</pre>
             </>
           )}
           {exportTab === 'data' && (
@@ -491,4 +672,10 @@ function download(blob: Blob, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
   toast('已开始下载');
+}
+
+function formatAuditTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }

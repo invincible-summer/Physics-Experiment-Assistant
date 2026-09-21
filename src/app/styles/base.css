@@ -1,4 +1,4 @@
-/** 基础层：reset、排版、焦点、滚动条、动效偏好 */
+/** 基础层：reset、排版、焦点、滚动条、图标、纹理、动效偏好 */
 
 *,
 *::before,
@@ -95,6 +95,19 @@ img, svg, canvas {
   background: transparent;
 }
 
+/* 内联图标：与文字基线对齐，纯装饰（aria-hidden 由组件保证） */
+.icon {
+  flex: none;
+  vertical-align: -0.24em;
+}
+.icon-knob {
+  fill: var(--paper-raised);
+}
+.icon-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
 /* 通用文本工具 */
 .muted { color: var(--ink-2); }
 .faint { color: var(--ink-3); }
@@ -116,9 +129,22 @@ img, svg, canvas {
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .wrap { overflow-wrap: anywhere; }
 
+/* 坐标纸点阵纹理（hero / 侧栏 / 空状态等装饰面） */
+.dotgrid {
+  background-image: radial-gradient(circle, var(--dot) 1.1px, transparent 1.1px);
+  background-size: var(--dot-size) var(--dot-size);
+}
+
 /* 页面标题区 */
 .page-head {
   margin-bottom: 20px;
+}
+.page-eyebrow {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.16em;
+  color: var(--accent-ink);
+  font-weight: 650;
+  text-transform: uppercase;
 }
 .page-title {
   font-family: var(--serif);
@@ -140,6 +166,33 @@ input[inputmode="decimal"],
   font-variant-numeric: tabular-nums;
 }
 
+/* 统计数字块：大等宽数值 + 单位 + 说明 */
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.stat-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.stat-num .u {
+  font-size: 0.62em;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-left: 4px;
+}
+.stat-cap {
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+
 /* 微动效：仅透明度与位移，reduced-motion 下全禁 */
 @media (prefers-reduced-motion: no-preference) {
   .btn, .nav-item, .m-item, .badge, a {
@@ -147,7 +200,7 @@ input[inputmode="decimal"],
       border-color 140ms ease, opacity 140ms ease, transform 140ms ease;
   }
   .panel, .result-card, .formula-card {
-    transition: border-color 140ms ease, box-shadow 140ms ease;
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
   }
   .toast { animation: toast-in 160ms ease; }
   @keyframes toast-in {

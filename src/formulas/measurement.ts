@@ -1,6 +1,7 @@
 /** 测量与统计公式（plan §20 测量族）+ 电学仪器公式（仪器族） */
 import { F, FormulaDefinition } from './types';
 import { tQuantile } from '../core/statistics';
+import { deriveCrossSquares, deriveResidualSquareCount, deriveStdCount, deriveSumCount } from './aggregates';
 
 const DOC = '2026秋物理实验A(1)教学资料';
 
@@ -18,6 +19,11 @@ export const MEASUREMENT_FORMULAS: FormulaDefinition[] = [
     ],
     solveFor: ['S', 'n'],
     solutions: { S: 'xbar * n', n: 'S / xbar' },
+    aggregates: {
+      columns: [{ id: 'x', label: '读数 $x_i$' }],
+      derive: deriveSumCount,
+      note: '粘贴一列读数后自动求和与计数，填入 S 与 n',
+    },
     provenance: { status: 'source-explicit', document: DOC, section: '测量误差与数据处理' },
     conditions: '等精度重复测量；多列数据请用"数据处理 → 快速统计"。',
   }),
@@ -49,6 +55,11 @@ export const MEASUREMENT_FORMULAS: FormulaDefinition[] = [
     ],
     solveFor: ['Q'],
     solutions: { Q: 'S^2 * (n - 1)' },
+    aggregates: {
+      columns: [{ id: 'x', label: '读数 $x_i$' }],
+      derive: deriveResidualSquareCount,
+      note: '粘贴一列读数后自动计算残差平方和 Q 与 n（至少 2 个数据）',
+    },
     constraints: [{ expression: 'n >= 2', message: '样本标准差至少需要 2 个数据' }],
     provenance: { status: 'source-explicit', document: DOC },
     conditions: 'n=1 时无法计算（AGENTS 约束）。整列数据请用快速统计工具。',
@@ -65,6 +76,11 @@ export const MEASUREMENT_FORMULAS: FormulaDefinition[] = [
     ],
     solveFor: ['S', 'n'],
     solutions: { S: 'Sx * sqrt(n)', n: '(S / Sx)^2' },
+    aggregates: {
+      columns: [{ id: 'x', label: '读数 $x_i$' }],
+      derive: deriveStdCount,
+      note: '粘贴一列读数后自动按贝塞尔公式计算 S 并计数 n',
+    },
     provenance: { status: 'source-explicit', document: DOC },
   }),
   F({
@@ -175,6 +191,14 @@ export const MEASUREMENT_FORMULAS: FormulaDefinition[] = [
       { name: 'Syy', label: 'Σ(y−ȳ)²', unit: '' },
     ],
     solveFor: [],
+    aggregates: {
+      columns: [
+        { id: 'x', label: '自变量 $x_i$' },
+        { id: 'y', label: '因变量 $y_i$' },
+      ],
+      derive: deriveCrossSquares,
+      note: '粘贴成对数据后自动计算 $S_{xx}$、$S_{xy}$、$S_{yy}$（两列逐行配对，缺值行跳过）',
+    },
     provenance: { status: 'source-explicit', document: DOC, note: '课程首先显示 r；R² 仅作工程扩展指标' },
   }),
   F({

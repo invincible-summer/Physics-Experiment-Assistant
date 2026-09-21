@@ -40,6 +40,8 @@ export interface Preferences {
 interface SettingsState extends Preferences {
   set<K extends keyof Preferences>(key: K, value: Preferences[K]): void;
   setCustomOptions(opts: Partial<CustomProfileOptions>): void;
+  /** 全部设置恢复为初始默认值（含标准配置、主题与功能开关） */
+  resetToDefaults(): void;
   /** 当前生效的标准配置对象 */
   activeProfile(): StandardProfile;
 }
@@ -73,6 +75,7 @@ export const useSettings = create<SettingsState>()(
       set: (key, value) => set({ [key]: value } as Partial<SettingsState>),
       setCustomOptions: (opts) =>
         set((s) => ({ customOptions: { ...s.customOptions, ...opts } })),
+      resetToDefaults: () => set({ ...defaults }),
       activeProfile: () => {
         const s = get();
         if (s.standardProfileId === 'custom') {
@@ -83,7 +86,7 @@ export const useSettings = create<SettingsState>()(
     }),
     {
       name: 'pea.settings',
-      partialize: (s) => ({ ...s, set: undefined, setCustomOptions: undefined, activeProfile: undefined }) as unknown as Preferences,
+      partialize: (s) => ({ ...s, set: undefined, setCustomOptions: undefined, resetToDefaults: undefined, activeProfile: undefined }) as unknown as Preferences,
     },
   ),
 );

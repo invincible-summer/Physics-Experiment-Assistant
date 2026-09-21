@@ -329,17 +329,41 @@ MVP 判定（§22）各条目状态：
 
 实现备注：golden test 中环体积等资料示例的输入数据集为"与资料最终答案对齐的重构数据"（源 PDF 未随仓库提供），已在测试注释中标注；公式 provenance 按 §8.4 的资料分类标注，湿空气声速等推导式标 `source-derived`。
 
-## 0.6 前端重设计（v2，2026-09-21）
+## 0.6 前端重设计（v2，2026-09-21，已被 v3 取代）
 
-UI 层整体重写（逻辑层 `src/core|formulas|experiments|standards|instruments|persistence|export` 零改动）：
+v2 确立了「Markdown 渲染层全覆盖、`src/app/styles/` 令牌化主题、`app/shell/` 声明式导航」三条 UI 基线，v3 在其上继续演进；v2 的具体样式记录不再单独保留，以现行代码为准。
 
-- 「学术墨韵」设计系统：暖纸/墨色/青碧令牌 + 完整暗色主题，集中在 `src/app/styles/`（tokens/base/components/layout/markdown/print 六份）。
-- **主题 bug 修复**：`theme` 扩为 `system|light|dark`（默认跟随系统），`index.html` 预渲染脚本改读 `pea.settings`，`App.tsx` 同步 `data-theme` 并监听系统变化；e2e 有覆盖。
-- 边栏构图重构：`app/shell/` 下 nav-config（单一声明式导航源）→ NavItem/SideNav/TopBar/MobileNav/StepNav → AppShell 纯组合，折叠态为可读缩写文字。
-- 全部可见文案（含 notice/徽标/toast/空状态/表格文字）统一走 Markdown 渲染层并支持 KaTeX 数学片段；修复 JSX 双引号属性不处理 `\\` 转义导致的数学片段失真（LaTeX 串必须用 `{ '...' }` 表达式传入）。
-- 组件层重写：Button/Badge/Panel/Notice/Modal/Tabs/Field 等原语 + DataGrid/PhysicsPlot/ResultInspector/FormulaCalculator 等领域组件（导出契约不变）；PhysicsPlot 主题感知配色并真正消费 `plotWhiteBackground`/`defaultPlotFormat` 设置。
-- 15 条路由页面全部重写；`EmptyState` 移除从未渲染的 icon prop；`PhysicsPlot` 移除未接线的 `onBrush`。
-- e2e 冒烟按新 UI 重写（6 用例全过）；127 单元测试全过（含保留的 markdown-ui 测试）；typecheck/build 全绿。
+---
+
+## 0.7 工作台化重构（v3，2026-09-21）
+
+目标：从「页面集合」升级为「工作流式工作台」。视觉方向定为**仪器控制台**（冷白纸面/石墨暗色 + 点阵纹理 + 手绘描边图标），不改 `src/core` 数学语义。
+
+- **设计系统 v3**：tokens 换色板（light accent 青碧 `#0c6f63`、dark 石墨 + 夜光青）；新增点阵 `.dotgrid`、统计数字块 `.stat-tile`、进度 `.progress-*`、步骤翻页 `.step-pager`、菜单 `.menu-*` 等；全部图标集中到 `components/Icon.tsx`（35 枚内联 SVG，仅装饰、永远配文字）。
+- **首页仪表盘化**：继续上次工作主卡（含填写进度）→ 工作流引导条 → 任务入口 → 标准摘要/最近项目。
+- **DataGrid v2**（`components/DataGrid.tsx` + 纯数据结构 `grid-history.ts`）：修复旧撤销恒失效与键盘输入不入栈两个缺陷（结构变更记录 + 聚焦快照模型）；新增 CSV/TSV 文件导入、批量序列填充/清空列、列宽拖动、末行 Enter 自动增行、非法单元格计数脚注。
+- **工具页统一表格录入**：统计/拟合/加权平均全面弃用 textarea，改用 DataGrid（保留原始文本与有效数字信息）；加权平均手动权重模式不再显示误导性的 `1/√Σw` 不确定度。
+- **工具间数据总线**（`features/tools/tool-bus.ts`，sessionStorage）：统计列 → 拟合/加权平均；拟合斜率/截距、加权均值 → 不确定度传播；接收页顶部横幅确认「填入」才覆盖，绝不静默。
+- **工具草稿持久化**（`use-tool-draft.ts`，localStorage）：六个工具页输入刷新不丢。
+- **新增 `/tools` 枢纽页**：六工具入口卡 + 数据流转说明。
+- **实验工作台工作流化**：stepper 三态（done/todo/attention，由 `engine.stepStatuses` 判定）、顶栏步骤进度、每步底部翻页条（末步「去导出」）、检查器按钮带结果/警告计数并首次自动展开一次、计算失败保留上次成功结果 + 醒目错误、参数非法标红给原因、迁移提示确认后落盘、检查器内审计日志折叠面板、手动保存模式下 dirty 时 beforeunload 保护。
+- **引擎正确性修复**：`parseTable` 派生列链——此前派生列引用派生列（如 `P = MP·g` 引用 `MP`）必得 NaN，导致摩擦 A 部分等拟合永远「数据不足」；现按列序求值并回写作用域（与 DataGrid 显示层一致），附回归测试。
+- **公式工作台修复**：目标量不再要求填写输入、无显式解明确报错（禁 NaN）、单位换算失败标红并阻止计算（AGENTS §7）、输入变更清旧结果、变量符号 KaTeX 化（`varSymbol.ts`）、复制最终表达；卡片操作收敛为「计算」+ 复制菜单；搜索与分类取交集。
+- **PhysicsPlot 升级**：ResizeObserver 自适应、误差棒不进图例、tooltip 显示 ±误差、annotations 真渲染（拟合式与 r 上图）、导出图数据 CSV。
+- **持久化/导出修复**：「导出全部」从死备份修复为 `projects-archive` 信封格式，导入兼容单项目/归档/裸数组三种载荷（纯函数 `parseProjectImport` + 11 条往返测试）；项目页支持搜索/排序/重命名/复制；设置页补齐 showRR2/defaultErrorBars/latexUnitStyle 与恢复默认。
+- **验证基线**：单元测试 161 个全绿（含 grid-history、tool-bus、stepStatuses、parseTable 派生链新增测试）；e2e 冒烟 9 用例（新增 /tools 枢纽、数据流转、工作台 stepper）；typecheck/build 全绿。
+- **仍未做（明示）**：工作台图未接逐点误差棒（数据集定义尚无不确定度列）；ODR 拟合、PWA 离线保持 v1 口径的「未支持」。
+
+## 0.8 体验修复与能力补齐（v3.1，2026-09-21）
+
+- **侧栏收起态重叠修复**：收起宽度 76px 内 brand-mark（36px）与收起按钮（≈32px）横向溢出重叠；改为收起态纵向堆叠布局，触控目标保持 ≥24px。
+- **原创产品标识**：`components/BrandMark.tsx`（同心干涉环 + 穿过测量点的波形，几何线稿，非通用 AI 图形）替换侧栏「φ」字符；`index.html` 增加 SVG data-URI favicon（规避 base 子路径假设）。
+- **绘图工作台 `/tools/plotter`**：DataGrid 多列数据系列（可增删/改名/连线，最多 6 系列）+ `y=f(x)` 表达式系列（安全 AST 求值、取样区间与点数可配、对数横轴几何取样）混合成图；图名/轴名/单位/**坐标起点终点（轴范围）**/对数轴可配置；PhysicsPlot 新增 `xMin/xMax/yMin/yMax`；SVG/PNG/CSV 导出；经工具总线接收任意表格载荷、可发送线性拟合；草稿持久化。
+- **公式列聚合输入**：`FormulaDefinition.aggregates` 新能力 + `formulas/aggregates.ts` 派生函数——平均值（S=Σxi、n）、贝塞尔标准偏差（Q、n）、平均值标准偏差（S、n）、相关系数（Sxx/Sxy/Syy）支持直接粘贴数据列自动派生，**不再要求用户手工先求和**；配对/缺值行跳过，派生值保持完整精度。
+- **公式完整过程导出**：公式计算器结果区新增「复制完整过程 Markdown / 下载 .md」（公式 → 代入 → 未修约 → 修约 → 最终表达 + 变量表 + 标准与时间页脚，`buildFormulaProcessMarkdown`）。
+- **完整实验报告导出**（`export/report.ts`）：`buildFullReportMarkdown`（封面/实验信息 metadata/参数/数据表含排除行标注/拟合/全部结果/规则摘要/诊断/审计日志/生成信息）与 `buildFullReportLatex`（ctexart + booktabs 可编译文档，附录审计日志）；工作台导出 Modal 升级为四 tab（完整报告 MD / 完整报告 LaTeX / 数据处理片段 / CSV·JSON）。
+- **渲染审计收尾**：公式计算器 `<option>` 的裸 LaTeX 符号转 Unicode 纯文本（平台例外位置不含 LaTeX 语法）；修复 friction 步骤说明错字。
+- **验证基线**：单元测试 177 全绿（新增 aggregates 9、report 7）；e2e 10 用例（新增绘图工作台出图/轴范围/导出断言，枢纽页更新为 7 工具）；typecheck/build 全绿。
 
 ---
 

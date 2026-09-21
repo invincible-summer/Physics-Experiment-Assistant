@@ -1,51 +1,62 @@
 /**
- * 设计令牌 —— 「学术墨韵」设计系统
- * 浅色：暖纸 + 墨色 + 青碧；深色：暖炭 + 米白 + 青碧（提亮度保 AA）。
- * 所有组件只允许引用本文件的变量，禁止散落硬编码颜色。
+ * 设计令牌 v3 —— 「仪器控制台 · Instrument Console」设计系统
+ * 浅色：冷白纸面 + 石墨墨 + 深青信号色，点阵坐标纸纹理；
+ * 深色：仪器石墨 + 夜光青，primary 操作带微光。
+ * 所有组件只允许引用本文件变量，禁止散落硬编码颜色。
  */
 :root {
   color-scheme: light;
 
-  /* 纸面 */
-  --paper: #faf9f5;
+  /* 纸面（冷白，微青灰） */
+  --paper: #f4f6f5;
   --paper-raised: #ffffff;
-  --paper-sunken: #f3f1ea;
-  --paper-hover: #f5f3ec;
-  --sidebar: #f6f4ee;
+  --paper-sunken: #ebedea;
+  --paper-hover: #eef1ee;
+  --sidebar: #edf0ee;
 
   /* 线 */
-  --line: #e5e2d7;
-  --line-strong: #d4d0c2;
+  --line: #dee3de;
+  --line-strong: #c7cec6;
 
-  /* 墨色 */
-  --ink-1: #211f1a;
-  --ink-2: #5b574c;
-  --ink-3: #918c7d;
-  --ink-inverse: #fdfcf9;
+  /* 墨色（冷石墨） */
+  --ink-1: #1b222b;
+  --ink-2: #4a545f;
+  --ink-3: #85909b;
+  --ink-inverse: #f6f8f7;
 
-  /* 青碧（强调） */
-  --accent: #0f766e;
-  --accent-strong: #0d5f59;
-  --accent-ink: #0b5350;
-  --accent-soft: rgba(15, 118, 110, 0.09);
-  --accent-soft-strong: rgba(15, 118, 110, 0.16);
+  /* 深青（主强调 · 信号色） */
+  --accent: #0c6f63;
+  --accent-hi: #128576;
+  --accent-strong: #0a5d53;
+  --accent-ink: #0a594f;
+  --accent-soft: rgba(12, 111, 99, 0.09);
+  --accent-soft-strong: rgba(12, 111, 99, 0.17);
   --on-accent: #ffffff;
+  --accent-glow: 0 1px 2px rgba(10, 93, 83, 0.35), 0 4px 14px rgba(12, 111, 99, 0.22);
+
+  /* 铜（次级点缀：关注、标记、次系列） */
+  --copper: #a25c10;
+  --copper-soft: rgba(162, 92, 16, 0.10);
 
   /* 语义 */
   --success: #1c6b3a;
-  --success-soft: #e7f1e8;
+  --success-soft: #e6f1e8;
   --warning: #92580d;
-  --warning-soft: #f8efdc;
+  --warning-soft: #f7efdd;
   --danger: #b3372c;
-  --danger-soft: #f9e7e3;
+  --danger-soft: #f8e7e3;
   --info: #2b4f9e;
   --info-soft: #e8edf8;
 
   /* 焦点与阴影 */
-  --focus-ring: rgba(15, 118, 110, 0.4);
-  --shadow-sm: 0 1px 2px rgba(46, 41, 28, 0.06);
-  --shadow-md: 0 2px 10px rgba(46, 41, 28, 0.09), 0 1px 2px rgba(46, 41, 28, 0.06);
-  --shadow-lg: 0 12px 36px rgba(46, 41, 28, 0.16), 0 2px 8px rgba(46, 41, 28, 0.08);
+  --focus-ring: rgba(12, 111, 99, 0.38);
+  --shadow-sm: 0 1px 2px rgba(27, 34, 43, 0.055);
+  --shadow-md: 0 2px 10px rgba(27, 34, 43, 0.08), 0 1px 2px rgba(27, 34, 43, 0.055);
+  --shadow-lg: 0 14px 38px rgba(27, 34, 43, 0.15), 0 2px 8px rgba(27, 34, 43, 0.07);
+
+  /* 点阵纹理（坐标纸） */
+  --dot: rgba(27, 34, 43, 0.055);
+  --dot-size: 22px;
 
   /* 圆角 */
   --radius-sm: 6px;
@@ -66,19 +77,19 @@
   --fs-lg: 16px;
   --fs-xl: 19px;
   --fs-2xl: 24px;
-  --fs-3xl: 30px;
+  --fs-3xl: 31px;
 
   /* 结构尺寸 */
-  --sidebar-w: 244px;
-  --sidebar-w-collapsed: 74px;
+  --sidebar-w: 248px;
+  --sidebar-w-collapsed: 76px;
   --topbar-h: 52px;
-  --content-max: 1080px;
+  --content-max: 1100px;
 
   /* 图表系列色（亮主题；不以颜色为唯一编码，符号同时轮换） */
-  --series-1: #0b5cad;
-  --series-2: #b3402f;
+  --series-1: #2166ac;
+  --series-2: #b4402d;
   --series-3: #1a7f37;
-  --series-4: #7d3c98;
+  --series-4: #6f4ba8;
   --series-5: #9a6208;
   --series-6: #0e7490;
 }
@@ -86,26 +97,33 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --paper: #1a1814;
-  --paper-raised: #23211c;
-  --paper-sunken: #14120e;
-  --paper-hover: #292620;
-  --sidebar: #1e1c17;
+  /* 仪器石墨 */
+  --paper: #0f1312;
+  --paper-raised: #171c1a;
+  --paper-sunken: #0a0d0c;
+  --paper-hover: #1c221f;
+  --sidebar: #121716;
 
-  --line: #38342b;
-  --line-strong: #4a4536;
+  --line: #262c29;
+  --line-strong: #39423c;
 
-  --ink-1: #edeae0;
-  --ink-2: #b5b0a1;
-  --ink-3: #807b6c;
-  --ink-inverse: #211f1a;
+  --ink-1: #e5eae6;
+  --ink-2: #a2aca5;
+  --ink-3: #6b7570;
+  --ink-inverse: #1b222b;
 
-  --accent: #4fb3a7;
-  --accent-strong: #6fc6bb;
-  --accent-ink: #83d0c6;
-  --accent-soft: rgba(79, 179, 167, 0.14);
-  --accent-soft-strong: rgba(79, 179, 167, 0.24);
-  --on-accent: #0f2a27;
+  /* 夜光青 */
+  --accent: #43c1a6;
+  --accent-hi: #5cd3b9;
+  --accent-strong: #62d6be;
+  --accent-ink: #72dcc6;
+  --accent-soft: rgba(67, 193, 166, 0.13);
+  --accent-soft-strong: rgba(67, 193, 166, 0.22);
+  --on-accent: #04211b;
+  --accent-glow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 18px rgba(67, 193, 166, 0.28);
+
+  --copper: #d99a4e;
+  --copper-soft: rgba(217, 154, 78, 0.14);
 
   --success: #6fbf8a;
   --success-soft: rgba(80, 160, 110, 0.16);
@@ -116,10 +134,12 @@
   --info: #93aee8;
   --info-soft: rgba(120, 150, 220, 0.16);
 
-  --focus-ring: rgba(79, 179, 167, 0.5);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --focus-ring: rgba(67, 193, 166, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.42), 0 1px 2px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 14px 38px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.42);
+
+  --dot: rgba(229, 234, 230, 0.05);
 
   --series-1: #6ea8e8;
   --series-2: #e08a7e;

@@ -21,23 +21,25 @@ export function ExperimentsPage() {
       </header>
       <div className="card-grid">
         {experiments.map((exp) => (
-          <Panel key={exp.id} title={exp.title} sub={exp.subtitle}>
+          <Panel key={exp.id} title={exp.title} sub={exp.subtitle} icon="flask">
             <div className="stack">
-              <div className="row">
+              <div className="exp-card-tags">
                 <Badge>{exp.category}</Badge>
                 {exp.tags.map((t) => <Badge key={t}>{t}</Badge>)}
-                <Badge variant={exp.reportType === 'full' ? 'accent' : 'default'}>
-                  {exp.reportType === 'full' ? '完整报告' : '简要报告'}
-                </Badge>
-                {exp.safety.length > 0 && (
-                  <Badge variant="warning" title="本实验含安全须知，新建项目后请先阅读">
-                    {`安全须知 ${exp.safety.length} 条`}
-                  </Badge>
-                )}
                 <SourceBadge provenance={exp.provenance} />
               </div>
-              <div className="row-right">
-                <Button variant="primary" onClick={() => navigate(`/experiments/${exp.id}/new`)}>
+              <div className="exp-card-foot">
+                <span className="row" style={{ gap: 6 }}>
+                  <Badge variant={exp.reportType === 'full' ? 'accent' : 'default'}>
+                    {exp.reportType === 'full' ? '完整报告' : '简要报告'}
+                  </Badge>
+                  {exp.safety.length > 0 && (
+                    <Badge variant="warning" title="本实验含安全须知，新建项目后请先阅读">
+                      {`安全须知 ${exp.safety.length} 条`}
+                    </Badge>
+                  )}
+                </span>
+                <Button variant="primary" size="sm" icon="arrow-right" onClick={() => navigate(`/experiments/${exp.id}/new`)}>
                   新建项目
                 </Button>
               </div>

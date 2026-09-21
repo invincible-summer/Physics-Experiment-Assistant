@@ -37,6 +37,20 @@ export interface UncertaintyCapability {
   note?: string;
 }
 
+/**
+ * 列聚合输入（AGENTS §11 数据处理工具化）：
+ * 允许用户直接粘贴原始数据列，由系统派生出公式变量（如平均值的 S、n），
+ * 而不是要求用户手工先求和。派生函数必须返回完整浮点值，不修约。
+ */
+export interface AggregateCapability {
+  /** 数据列定义（1 或 2 列，用于 DataGrid 表头） */
+  columns: { id: string; label: string }[];
+  /** 由数据列派生变量值；数据不足返回 null */
+  derive: (columns: number[][]) => Record<string, number> | null;
+  /** UI 说明：将派生哪些变量 */
+  note: string;
+}
+
 export interface FormulaExample {
   title: string;
   inputs: Record<string, number>;
@@ -62,6 +76,8 @@ export interface FormulaDefinition {
   solutions?: Record<string, string>;
   constraints?: FormulaConstraint[];
   uncertainty?: UncertaintyCapability;
+  /** 可选：从原始数据列自动派生输入变量（如 S=Σxi、n=计数） */
+  aggregates?: AggregateCapability;
   provenance: Provenance;
   examples?: FormulaExample[];
   /** 适用条件 */

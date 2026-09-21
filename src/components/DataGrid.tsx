@@ -1,15 +1,18 @@
 /**
- * DataGrid — 实验数据表格（AGENTS.md §12）。
- * 粘贴 TSV/CSV（多单元格）；Enter/Tab/方向键导航；增删行、撤销/重做；
- * 派生列只读；缺失值显示 —（绝不自动填 0）；异常格式标红不篡改数据；
- * 行排除（记录审计）；复制为 Markdown 表格。所有按钮为可读文字。
+ * DataGrid v2 — 全站统一数据表格（AGENTS.md §12）。
+ * 粘贴 TSV/CSV（多单元格 + 文件导入）；Enter/Tab/方向键导航，末行 Enter 自动增行；
+ * 增删行、撤销/重做（含键盘输入，聚焦快照模型）；批量操作（序列填充/清空列/整表清空）；
+ * 列宽拖动调整；派生列只读；缺失值显示 —（绝不自动填 0）；
+ * 异常格式标红并给出原因（不篡改数据）；行排除（记录审计）；复制为 Markdown 表格。
  */
 import { ClipboardEvent, KeyboardEvent, useMemo, useRef, useState } from 'react';
 import { parseNumericText } from '../core/numeric';
 import { compileExpression, evaluateExpression } from '../core/expression';
 import { Tex } from './katex';
-import { Button, toast } from './ui';
+import { Icon } from './Icon';
+import { Button, ConfirmButton, Field, Menu, Modal, toast } from './ui';
 import { MarkdownInline } from './Markdown';
+import { GridHistory, cloneRows } from './grid-history';
 
 export interface GridColumn {
   id: string;
@@ -39,61 +42,68 @@ export interface DataGridProps {
   hint?: string;
 }
 
-interface HistoryState { rows: string[][] }
-
 export function DataGrid({
   columns, rows, onChange, derivedScope = {}, excludedRows = [], onToggleExclude,
   defaultRows = 8, minRows = 1, title, hint,
 }: DataGridProps) {
-  const undoStack = useRef<HistoryState[]>([]);
-  const redoStack = useRef<HistoryState[]>([]);
+  const history = useRef<GridHistory>(new GridHistory(100));
+  const [, setHistTick] = useState(0);
   const [focused, setFocused] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchCol, setBatchCol] = useState('');
+  const [batchMode, setBatchMode] = useState<'fill' | 'clear'>('fill');
+  const [fillStart, setFillStart] = useState('0');
+  const [fillStep, setFillStep] = useState('1');
+  const [colWidths, setColWidths] = useState<Record<string, number>>({});
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const fileRef = useRef<HTMLInputElement>(null);
+  const resizeRef = useRef<{ colId: string; startX: number; startW: number } | null>(null);
 
-  const pushHistory = (newRows: string[][]) => {
-    undoStack.current.push({ rows });
-    if (undoStack.current.length > 100) undoStack.current.shift();
-    redoStack.current = [];
-    onChange(newRows);
+  const bumpHist = () => setHistTick((v) => v + 1);
+
+  /** 结构性变更统一入口：先记录历史再应用 */
+  const commit = (next: string[][]) => {
+    history.current.record(rows);
+    bumpHist();
+    onChange(next);
   };
 
   const undo = () => {
-    const prev = undoStack.current.pop();
+    const prev = history.current.undo(rows);
     if (!prev) return;
-    redoStack.current.push({ rows });
-    onChange(prev.rows);
+    bumpHist();
+    onChange(prev);
   };
   const redo = () => {
-    const next = redoStack.current.pop();
+    const next = history.current.redo(rows);
     if (!next) return;
-    undoStack.current.push({ rows });
-    onChange(next.rows);
+    bumpHist();
+    onChange(next);
   };
 
+  /** 键盘逐格输入：即时同步（不入历史）；历史由聚焦快照在失焦时提交 */
   const setCell = (r: number, c: number, value: string) => {
-    const next = rows.map((row) => [...row]);
+    const next = cloneRows(rows);
     next[r][c] = value;
     onChange(next);
   };
 
-  const setCellHistory = (r: number, c: number, value: string) => {
-    const next = rows.map((row) => [...row]);
-    next[r][c] = value;
-    pushHistory(next);
-  };
-
   const addRow = (at?: number) => {
-    const next = [...rows.map((r) => [...r])];
+    const next = cloneRows(rows);
     const empty = columns.map(() => '');
     if (at === undefined) next.push(empty);
     else next.splice(at + 1, 0, empty);
-    pushHistory(next);
+    commit(next);
   };
 
   const removeRow = (r: number) => {
     if (rows.length <= minRows) { toast(`至少保留 ${minRows} 行`); return; }
-    const next = rows.filter((_, i) => i !== r);
-    pushHistory(next);
+    commit(rows.filter((_, i) => i !== r));
+  };
+
+  const focusCell = (r: number, c: number) => {
+    const el = inputRefs.current.get(`${r}-${c}`);
+    if (el) { el.focus(); el.select(); }
   };
 
   /** 派生列求值（含行内变量，按列序、无环） */
@@ -140,42 +150,81 @@ export function DataGrid({
     return result;
   }, [rows, columns, derivedScope]);
 
+  /** 非法单元格统计（脚注汇总） */
+  const invalidCount = useMemo(() => {
+    let n = 0;
+    rows.forEach((row) => {
+      columns.forEach((c, j) => {
+        if (c.kind === 'derived') return;
+        const raw = (row[j] ?? '').trim();
+        if (raw !== '' && !parseNumericText(raw).ok) n += 1;
+      });
+    });
+    return n;
+  }, [rows, columns]);
+
+  const applyMatrix = (matrix: string[][], r0: number, c0: number, replaceAll: boolean) => {
+    if (matrix.length === 0 || matrix[0].length === 0) return 0;
+    const next = replaceAll ? [] as string[][] : cloneRows(rows);
+    const needRows = replaceAll ? matrix.length : r0 + matrix.length;
+    while (next.length < needRows) next.push(columns.map(() => ''));
+    matrix.forEach((pastedRow, di) => {
+      pastedRow.forEach((val, dj) => {
+        const col = columns[(replaceAll ? 0 : c0) + dj];
+        if (!col || col.kind === 'derived') return;
+        next[(replaceAll ? 0 : r0) + di][(replaceAll ? 0 : c0) + dj] = val.trim();
+      });
+    });
+    commit(next);
+    return matrix.length;
+  };
+
   const onPaste = (e: ClipboardEvent<HTMLInputElement>, r0: number, c0: number) => {
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
     if (!text) return;
     const matrix = parseTSV(text);
-    if (matrix.length === 0 || matrix[0].length === 0) return;
-    const needRows = r0 + matrix.length;
-    const next = rows.map((row) => [...row]);
-    while (next.length < needRows) next.push(columns.map(() => ''));
-    matrix.forEach((pastedRow, di) => {
-      pastedRow.forEach((val, dj) => {
-        const col = columns[c0 + dj];
-        if (!col || col.kind === 'derived') return;
-        next[r0 + di][c0 + dj] = val.trim();
-      });
-    });
-    pushHistory(next);
-    toast(`已粘贴 ${matrix.length} 行 × ${matrix[0].length} 列`);
+    const n = applyMatrix(matrix, r0, c0, false);
+    if (n > 0) toast(`已粘贴 ${n} 行 × ${matrix[0].length} 列`);
+  };
+
+  const onImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? '');
+      const matrix = parseTSV(text.replace(/^﻿/, ''));
+      const hasData = rows.some((r) => r.some((c) => c.trim() !== ''));
+      if (hasData && !window.confirm('导入将覆盖当前表格全部内容，确认导入？')) return;
+      const n = applyMatrix(matrix, 0, 0, true);
+      if (n > 0) toast(`已从 ${file.name} 导入 ${n} 行`);
+      else toast('文件中没有可导入的数据');
+    };
+    reader.onerror = () => toast('文件读取失败');
+    reader.readAsText(file);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>, r: number, c: number) => {
     const move = (dr: number, dc: number) => {
       e.preventDefault();
-      const nr = Math.max(0, Math.min(rows.length - 1, r + dr));
-      const ncIdx = Math.max(0, Math.min(columns.length - 1, c + dc));
-      const el = inputRefs.current.get(`${nr}-${ncIdx}`);
-      if (el) { el.focus(); el.select(); }
+      let nr = r + dr;
+      const nc = Math.max(0, Math.min(columns.length - 1, c + dc));
+      // 末行继续向下/Enter：自动增行（录入长表不打断节奏）
+      if (nr > rows.length - 1) {
+        addRow();
+        window.setTimeout(() => focusCell(rows.length, nc), 0);
+        return;
+      }
+      nr = Math.max(0, nr);
+      focusCell(nr, nc);
     };
-    if (e.key === 'Enter') { move(e.shiftKey ? -1 : 1, 0); }
-    else if (e.key === 'Tab') { move(0, e.shiftKey ? -1 : 1); }
+    if (e.key === 'Enter') { history.current.commitSnapshot(rows); bumpHist(); move(e.shiftKey ? -1 : 1, 0); }
+    else if (e.key === 'Tab') { history.current.commitSnapshot(rows); bumpHist(); move(0, e.shiftKey ? -1 : 1); }
     else if (e.key === 'ArrowDown') move(1, 0);
     else if (e.key === 'ArrowUp') move(-1, 0);
     else if (e.key === 'ArrowRight' && (e.target as HTMLInputElement).selectionStart === (e.target as HTMLInputElement).value.length) move(0, 1);
     else if (e.key === 'ArrowLeft' && (e.target as HTMLInputElement).selectionStart === 0) move(0, -1);
-    else if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
-    else if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); }
   };
 
   const markdownTable = () => {
@@ -193,22 +242,93 @@ export function DataGrid({
     return [head, sep, ...body].join('\n');
   };
 
+  const editableColumns = columns.filter((c) => c.kind !== 'derived');
+
+  const applyBatch = () => {
+    const colId = batchCol || editableColumns[0]?.id || '';
+    const ci = columns.findIndex((c) => c.id === colId);
+    if (ci < 0) { setBatchOpen(false); return; }
+    if (batchMode === 'clear') {
+      const next = cloneRows(rows);
+      next.forEach((row) => { row[ci] = ''; });
+      commit(next);
+      toast(`已清空「${columns[ci].header}」列`);
+    } else {
+      const start = parseNumericText(fillStart);
+      const step = parseNumericText(fillStep);
+      if (!start.ok || !step.ok) { toast('起始值或步长不是有效数值'); return; }
+      const next = cloneRows(rows);
+      next.forEach((row, i) => { row[ci] = String(start.value + step.value * i); });
+      commit(next);
+      toast(`已按等差序列填充「${columns[ci].header}」列（${rows.length} 行）`);
+    }
+    setBatchOpen(false);
+  };
+
+  const clearAll = () => {
+    commit(rows.map(() => columns.map(() => '')));
+    toast('已清空整张表格（可用撤销恢复）');
+  };
+
+  const onResizeStart = (e: React.PointerEvent, colId: string, th: HTMLTableCellElement) => {
+    e.preventDefault();
+    resizeRef.current = { colId, startX: e.clientX, startW: th.getBoundingClientRect().width };
+    const onMove = (ev: PointerEvent) => {
+      const cur = resizeRef.current;
+      if (!cur) return;
+      const w = Math.max(64, Math.min(420, cur.startW + ev.clientX - cur.startX));
+      setColWidths((prev) => ({ ...prev, [cur.colId]: Math.round(w) }));
+    };
+    const onUp = () => {
+      resizeRef.current = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
   return (
     <div>
       {title && <div className="panel-title" style={{ marginBottom: 2 }}><MarkdownInline>{title}</MarkdownInline></div>}
       {hint && <div className="panel-sub" style={{ marginBottom: 8 }}><MarkdownInline>{hint}</MarkdownInline></div>}
       <div className="grid-toolbar">
-        <Button size="sm" onClick={() => addRow()}>添加一行</Button>
+        <Button size="sm" icon="plus" onClick={() => addRow()}>添加一行</Button>
         <Button size="sm" onClick={() => {
-          const next = rows.map((r) => [...r]);
+          const next = cloneRows(rows);
           while (next.length < defaultRows) next.push(columns.map(() => ''));
-          if (next.length !== rows.length) pushHistory(next);
+          if (next.length !== rows.length) commit(next);
         }}>{`补足 ${defaultRows} 行`}</Button>
-        <Button size="sm" variant="ghost" onClick={undo} disabled={undoStack.current.length === 0}>撤销</Button>
-        <Button size="sm" variant="ghost" onClick={redo} disabled={redoStack.current.length === 0}>重做</Button>
+        <Menu
+          trigger="批量操作"
+          items={[
+            { id: 'fill', label: '序列填充 / 清空列…', icon: 'grid' },
+            { id: 'reset-width', label: '重置列宽', icon: 'undo' },
+          ]}
+          onSelect={(id) => {
+            if (id === 'fill') { setBatchCol(editableColumns[0]?.id ?? ''); setBatchMode('fill'); setBatchOpen(true); }
+            if (id === 'reset-width') { setColWidths({}); toast('已重置列宽'); }
+          }}
+        />
+        <Button size="sm" icon="upload" onClick={() => fileRef.current?.click()}>导入 CSV/TSV</Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onImportFile(f);
+            e.target.value = '';
+          }}
+        />
+        <Button size="sm" variant="ghost" icon="undo" onClick={undo} disabled={!history.current.canUndo} aria-label="撤销">撤销</Button>
+        <Button size="sm" variant="ghost" icon="redo" onClick={redo} disabled={!history.current.canRedo} aria-label="重做">重做</Button>
         <span className="spacer" />
+        <ConfirmButton size="sm" onConfirm={clearAll} question="确认清空整张表格？（可用撤销恢复）">清空表格</ConfirmButton>
         <Button
           size="sm"
+          icon="copy"
           onClick={async () => {
             try { await navigator.clipboard.writeText(markdownTable()); toast('已复制 Markdown 表格'); } catch { /* noop */ }
           }}
@@ -220,12 +340,17 @@ export function DataGrid({
             <tr>
               <th style={{ width: 40 }}>#</th>
               {columns.map((c) => (
-                <th key={c.id}>
+                <th key={c.id} style={colWidths[c.id] ? { width: colWidths[c.id], position: 'relative' } : { position: 'relative' }}>
                   <MarkdownInline>{c.header}</MarkdownInline>
                   {c.unit && <span className="col-unit"><MarkdownInline>{c.unit}</MarkdownInline></span>}
                   {c.kind === 'derived' && c.formulaLatex && (
                     <span className="col-unit" title={c.formulaLatex}><Tex tex={c.formulaLatex} display={false} /></span>
                   )}
+                  <span
+                    className="col-resize"
+                    onPointerDown={(e) => onResizeStart(e, c.id, e.currentTarget.parentElement as HTMLTableCellElement)}
+                    title="拖动调整列宽"
+                  />
                 </th>
               ))}
               <th style={{ width: 116 }}><MarkdownInline>操作</MarkdownInline></th>
@@ -251,7 +376,7 @@ export function DataGrid({
                   }
                   const raw = (row[j] ?? '').trim();
                   const parsed = raw === '' ? null : parseNumericText(raw);
-                  const invalid = raw !== '' && !parsed?.ok;
+                  const invalid = raw !== '' && parsed !== null && !parsed.ok;
                   return (
                     <td key={c.id} style={excludedRows.includes(r) ? { opacity: 0.45 } : undefined}>
                       <input
@@ -260,9 +385,10 @@ export function DataGrid({
                         value={row[j] ?? ''}
                         placeholder="—"
                         inputMode="decimal"
-                        onFocus={() => setFocused(true)}
+                        title={invalid && parsed ? parsed.error : undefined}
+                        onFocus={() => { setFocused(true); history.current.snapshot(rows); }}
                         onChange={(e) => setCell(r, j, e.target.value)}
-                        onBlur={(e) => { if (e.target.value !== (rows[r]?.[j] ?? '')) setCellHistory(r, j, e.target.value); }}
+                        onBlur={() => { history.current.commitSnapshot(rows); bumpHist(); }}
                         onPaste={(e) => onPaste(e, r, j)}
                         onKeyDown={(e) => onKeyDown(e, r, j)}
                         aria-label={`${c.header} 第 ${r + 1} 行`}
@@ -279,11 +405,52 @@ export function DataGrid({
           </tbody>
         </table>
       </div>
-      {focused && (
+      {(focused || invalidCount > 0) && (
         <div className="small muted grid-footnote">
-          <MarkdownInline>Enter/Tab/方向键导航 · Ctrl+Z 撤销 · 可从 Excel 粘贴 TSV · 空缺显示 —，不会自动填 0 · 点击行号排除/恢复该行</MarkdownInline>
+          <MarkdownInline>{`Enter/Tab/方向键导航 · 末行 Enter 自动增行 · Ctrl+Z 撤销 · 可粘贴 TSV 或导入 CSV 文件 · 空缺显示 —，不会自动填 0${onToggleExclude ? ' · 点击行号排除/恢复该行' : ''}`}</MarkdownInline>
+          {invalidCount > 0 && (
+            <span className="row" style={{ gap: 4, marginTop: 3, color: 'var(--danger)' }}>
+              <Icon name="alert" size={13} />
+              <MarkdownInline>{`**${invalidCount}** 个单元格无法解析为数值，计算时已按缺失处理`}</MarkdownInline>
+            </span>
+          )}
         </div>
       )}
+
+      <Modal open={batchOpen} onClose={() => setBatchOpen(false)} title="批量操作">
+        <div className="stack">
+          <div className="form-grid">
+            <Field label="目标列">
+              <select className="select" value={batchCol} onChange={(e) => setBatchCol(e.target.value)}>
+                {editableColumns.map((c) => <option key={c.id} value={c.id}>{c.header}</option>)}
+              </select>
+            </Field>
+            <Field label="操作">
+              <select className="select" value={batchMode} onChange={(e) => setBatchMode(e.target.value as 'fill' | 'clear')}>
+                <option value="fill">等差序列填充</option>
+                <option value="clear">清空该列</option>
+              </select>
+            </Field>
+            {batchMode === 'fill' && (
+              <>
+                <Field label="起始值">
+                  <input className="input" inputMode="decimal" value={fillStart} onChange={(e) => setFillStart(e.target.value)} />
+                </Field>
+                <Field label="步长">
+                  <input className="input" inputMode="decimal" value={fillStep} onChange={(e) => setFillStep(e.target.value)} />
+                </Field>
+              </>
+            )}
+          </div>
+          <div className="small muted">
+            <MarkdownInline>{batchMode === 'fill' ? '按 `起始值 + 行号 × 步长` 填充现有全部行；常用于序号列、时间列。' : '清空该列全部单元格（其他列不受影响；可用撤销恢复）。'}</MarkdownInline>
+          </div>
+          <div className="row-right">
+            <Button variant="ghost" onClick={() => setBatchOpen(false)}>取消</Button>
+            <Button variant="primary" onClick={applyBatch}>应用</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

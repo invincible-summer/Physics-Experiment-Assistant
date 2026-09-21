@@ -1,20 +1,26 @@
-/** 线性拟合页（plan §9.3）：普通 OLS / 强制过原点 / 加权拟合，变换 + 拟合图 + 残差图 + 课程修约结果 */
-import { useMemo, useState } from 'react';
-import { PairInput } from './tool-inputs';
+/** 线性拟合页（plan §9.3）：DataGrid 成对录入 + 普通 OLS / 强制过原点 / 加权拟合，变换 + 拟合图 + 残差图 + 课程修约结果 + 数据流转 */
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ols, olsThroughOrigin, weightedOLS, TRANSFORMS } from '../../core/regression';
 import type { OLSResult, ThroughOriginResult, WeightedOLSResult } from '../../core/regression';
 import { fitParameterDisplay } from '../../core/sigfig';
+import { parseNumericText } from '../../core/numeric';
 import { useSettings } from '../../stores/settings';
-import { Button, EmptyState, Field, Notice, Panel } from '../../components/ui';
+import { Button, EmptyState, Field, Menu, Notice, Panel, toast } from '../../components/ui';
 import { PhysicsPlot, PlotChecklist, PlotSeries } from '../../components/PhysicsPlot';
 import { Tex } from '../../components/katex';
 import { makeResult, ResultItem } from '../../core/results';
 import { ResultCard } from '../../components/ResultInspector';
 import { MarkdownInline } from '../../components/Markdown';
+import { DataGrid, GridColumn } from '../../components/DataGrid';
+import { useToolDraft } from './use-tool-draft';
+import { PayloadBanner } from './PayloadBanner';
+import { useToolBus } from './tool-bus';
+import { fmtDisplay } from './fmt';
 
 type FitMode = 'ols' | 'origin' | 'weighted';
 type FitResult = OLSResult | ThroughOriginResult | WeightedOLSResult;
-type Analysis = { fit: FitResult; xs: number[]; ys: number[]; validWeights: boolean } | { error: string };
+type Analysis = { fit: FitResult; xs: number[]; ys: number[]; badWeights: number } | { error: string };
 
 /** 变换元数据：选项文案、定义域检查、默认轴标签 */
 const TRANSFORM_ORDER = ['identity', 'ln', 'log10', 'square', 'reciprocal', 'sqrt'] as const;
@@ -37,33 +43,69 @@ const MODE_EQUATION: Record<FitMode, string> = {
   weighted: '加权 y = a + bx',
 };
 
-function fmt(v: number, sig = 6): string {
-  if (!Number.isFinite(v)) return '—';
-  if (v === 0) return '0';
-  const a = Math.abs(v);
-  if (a >= 1e6 || a < 1e-4) return v.toExponential(4);
-  return Number(v.toPrecision(sig)).toString();
+interface RegDraft {
+  rows: string[][];
+  mode: FitMode;
+  xTransform: string;
+  yTransform: string;
+  swapXY: boolean;
+  xName: string;
+  yName: string;
 }
+
+const INITIAL_DRAFT: RegDraft = {
+  rows: Array.from({ length: 8 }, () => ['', '', '']),
+  mode: 'ols',
+  xTransform: 'identity',
+  yTransform: 'identity',
+  swapXY: false,
+  xName: '',
+  yName: '',
+};
 
 export function RegressionPage() {
   const profile = useSettings((s) => s.activeProfile());
   const showFitR = useSettings((s) => s.showFitR);
   const showRR2 = useSettings((s) => s.showRR2);
   const confidence = profile.confidence ?? 0.95;
+  const navigate = useNavigate();
+  const send = useToolBus((s) => s.send);
 
-  const [mode, setMode] = useState<FitMode>('ols');
-  const [xTransform, setXTransform] = useState('identity');
-  const [yTransform, setYTransform] = useState('identity');
-  const [swapXY, setSwapXY] = useState(false);
-  const [xName, setXName] = useState('');
-  const [yName, setYName] = useState('');
-  const [data, setData] = useState<{ xs: number[]; ys: number[]; rawXs: string[]; rawYs: string[] }>({ xs: [], ys: [], rawXs: [], rawYs: [] });
-  const [weightsText, setWeightsText] = useState('');
+  const [draft, setDraft] = useToolDraft<RegDraft>('regression', INITIAL_DRAFT);
+  const { rows, mode, xTransform, yTransform, swapXY, xName, yName } = draft;
+  const patch = (p: Partial<RegDraft>) => setDraft((d) => ({ ...d, ...p }));
 
-  const weights = useMemo(() => {
-    if (mode !== 'weighted') return [];
-    return weightsText.split(/[\n,;，；\s]+/).map((s) => Number(s.trim())).filter((v) => Number.isFinite(v) && v > 0);
-  }, [weightsText, mode]);
+  const gridColumns: GridColumn[] = useMemo(() => {
+    const cols: GridColumn[] = [
+      { id: 'x', header: '$x$' },
+      { id: 'y', header: '$y$' },
+    ];
+    if (mode === 'weighted') cols.push({ id: 'w', header: '权重 $w_i$' });
+    return cols;
+  }, [mode]);
+
+  /** 行 → 数值对（原始文本保留给有效数字规则；非法格记 NaN 由定义域/有限性过滤） */
+  const data = useMemo(() => {
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const ws: number[] = [];
+    const rawXs: string[] = [];
+    const rawYs: string[] = [];
+    for (const row of rows) {
+      const rx = (row[0] ?? '').trim();
+      const ry = (row[1] ?? '').trim();
+      if (rx === '' && ry === '') continue;
+      const px = parseNumericText(rx);
+      const py = parseNumericText(ry);
+      const pw = parseNumericText((row[2] ?? '').trim());
+      rawXs.push(rx);
+      rawYs.push(ry);
+      xs.push(px.ok ? px.value : NaN);
+      ys.push(py.ok ? py.value : NaN);
+      ws.push(pw.ok ? pw.value : NaN);
+    }
+    return { xs, ys, ws, rawXs, rawYs };
+  }, [rows]);
 
   const analysis: Analysis | null = useMemo(() => {
     const tx = TRANSFORMS[xTransform] ?? TRANSFORMS.identity;
@@ -72,29 +114,35 @@ export function RegressionPage() {
     const dy = TRANSFORM_META[yTransform]?.domain ?? (() => true);
     // 定义域检查：只剔除所选变换无法取值的数据对（如 ln 要求 > 0）
     const pairs = data.xs
-      .map((x, i) => [x, data.ys[i]] as const)
-      .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && dx(x) && dy(y));
+      .map((x, i) => ({ x, y: data.ys[i], w: data.ws[i] }))
+      .filter(({ x, y }) => Number.isFinite(x) && Number.isFinite(y) && dx(x) && dy(y));
     const need = mode === 'origin' ? 2 : 3;
     if (pairs.length < need) return null;
-    let xs0 = pairs.map(([x]) => tx(x));
-    let ys0 = pairs.map(([, y]) => ty(y));
+    let xs0 = pairs.map((p) => tx(p.x));
+    let ys0 = pairs.map((p) => ty(p.y));
     if (swapXY) { [xs0, ys0] = [ys0, xs0]; }
+    // 权重与数据点逐行对齐：缺失/非法（≤0）权重计数，存在时整体退化为等权并警告
+    const badWeights = mode === 'weighted' ? pairs.filter((p) => !Number.isFinite(p.w) || p.w <= 0).length : 0;
+    const wFit = mode === 'weighted'
+      ? (badWeights === 0 ? pairs.map((p) => p.w) : xs0.map(() => 1))
+      : [];
     try {
       const fit: FitResult = mode === 'origin'
         ? olsThroughOrigin(xs0, ys0, confidence)
         : mode === 'weighted'
-          ? weightedOLS(xs0, ys0, weights.length === xs0.length ? weights : xs0.map(() => 1), confidence)
+          ? weightedOLS(xs0, ys0, wFit, confidence)
           : ols(xs0, ys0, confidence);
-      return { fit, xs: xs0, ys: ys0, validWeights: weights.length === xs0.length };
+      return { fit, xs: xs0, ys: ys0, badWeights };
     } catch (err) {
       return { error: (err as Error).message };
     }
-  }, [data, mode, xTransform, yTransform, swapXY, weights, confidence]);
+  }, [data, mode, xTransform, yTransform, swapXY, confidence]);
 
   const defaultXLabel = TRANSFORM_META[xTransform]?.axis('x') ?? 'x';
   const defaultYLabel = TRANSFORM_META[yTransform]?.axis('y') ?? 'y';
   const xLabel = xName.trim() || defaultXLabel;
   const yLabel = yName.trim() || defaultYLabel;
+  const plotTitle = `数据与拟合（${MODE_EQUATION[mode]}）`;
 
   const series: PlotSeries[] = useMemo(() => {
     if (!analysis || 'error' in analysis) return [];
@@ -127,49 +175,49 @@ export function RegressionPage() {
   const statRows = useMemo(() => {
     if (!analysis || 'error' in analysis) return [];
     const fit = analysis.fit;
-    const tRow = { label: `$t_{${confidence}}(\\nu=${fit.dof})$`, value: fmt(fit.t) };
+    const tRow = { label: `$t_{${confidence}}(\\nu=${fit.dof})$`, value: fmtDisplay(fit.t) };
     if ('r' in fit) {
       const rows = [
         { label: '数据点数 $n$', value: String(fit.n) },
-        { label: '截距 $a$', value: fmt(fit.a) },
-        { label: '斜率 $b$', value: fmt(fit.b) },
+        { label: '截距 $a$', value: fmtDisplay(fit.a) },
+        { label: '斜率 $b$', value: fmtDisplay(fit.b) },
       ];
-      if (showFitR) rows.push({ label: '相关系数 $r$（课程首选）', value: fmt(fit.r, 8) });
-      if (showRR2) rows.push({ label: '$R^2$（工程扩展指标）', value: fmt(fit.r2, 8) });
+      if (showFitR) rows.push({ label: '相关系数 $r$（课程首选）', value: fmtDisplay(fit.r, 8) });
+      if (showRR2) rows.push({ label: '$R^2$（工程扩展指标）', value: fmtDisplay(fit.r2, 8) });
       rows.push(
         tRow,
-        { label: '$S_a$（截距标准误）', value: fmt(fit.sa) },
-        { label: '$S_b$（斜率标准误）', value: fmt(fit.sb) },
-        { label: '$\\Delta_a = t\\,S_a$', value: fmt(fit.deltaA) },
-        { label: '$\\Delta_b = t\\,S_b$', value: fmt(fit.deltaB) },
-        { label: '残差平方和 $\\mathrm{SSE}$', value: fmt(fit.sse) },
-        { label: '剩余标准差 $S$', value: fmt(fit.s) },
+        { label: '$S_a$（截距标准误）', value: fmtDisplay(fit.sa) },
+        { label: '$S_b$（斜率标准误）', value: fmtDisplay(fit.sb) },
+        { label: '$\\Delta_a = t\\,S_a$', value: fmtDisplay(fit.deltaA) },
+        { label: '$\\Delta_b = t\\,S_b$', value: fmtDisplay(fit.deltaB) },
+        { label: '残差平方和 $\\mathrm{SSE}$', value: fmtDisplay(fit.sse) },
+        { label: '剩余标准差 $S$', value: fmtDisplay(fit.s) },
       );
       return rows;
     }
     if ('chi2' in fit) {
       return [
         { label: '数据点数 $n$', value: String(fit.n) },
-        { label: '截距 $a$', value: fmt(fit.a) },
-        { label: '斜率 $b$', value: fmt(fit.b) },
+        { label: '截距 $a$', value: fmtDisplay(fit.a) },
+        { label: '斜率 $b$', value: fmtDisplay(fit.b) },
         tRow,
-        { label: '$S_a$（截距标准误）', value: fmt(fit.sa) },
-        { label: '$S_b$（斜率标准误）', value: fmt(fit.sb) },
-        { label: '$\\Delta_a = t\\,S_a$', value: fmt(fit.deltaA) },
-        { label: '$\\Delta_b = t\\,S_b$', value: fmt(fit.deltaB) },
-        { label: '加权残差平方和 $\\chi^2$', value: fmt(fit.chi2) },
-        { label: '剩余标准差 $S$', value: fmt(fit.s) },
+        { label: '$S_a$（截距标准误）', value: fmtDisplay(fit.sa) },
+        { label: '$S_b$（斜率标准误）', value: fmtDisplay(fit.sb) },
+        { label: '$\\Delta_a = t\\,S_a$', value: fmtDisplay(fit.deltaA) },
+        { label: '$\\Delta_b = t\\,S_b$', value: fmtDisplay(fit.deltaB) },
+        { label: '加权残差平方和 $\\chi^2$', value: fmtDisplay(fit.chi2) },
+        { label: '剩余标准差 $S$', value: fmtDisplay(fit.s) },
       ];
     }
     return [
       { label: '数据点数 $n$', value: String(fit.n) },
-      { label: '斜率 $b$', value: fmt(fit.b) },
-      { label: '原点回归 $R^2 = 1 - \\mathrm{SSE}/\\sum_i y_i^2$', value: fmt(fit.r2, 8) },
+      { label: '斜率 $b$', value: fmtDisplay(fit.b) },
+      { label: '原点回归 $R^2 = 1 - \\mathrm{SSE}/\\sum_i y_i^2$', value: fmtDisplay(fit.r2, 8) },
       tRow,
-      { label: '$S_b$（斜率标准误）', value: fmt(fit.sb) },
-      { label: '$\\Delta_b = t\\,S_b$', value: fmt(fit.deltaB) },
-      { label: '残差平方和 $\\mathrm{SSE}$', value: fmt(fit.sse) },
-      { label: '剩余标准差 $S$', value: fmt(fit.s) },
+      { label: '$S_b$（斜率标准误）', value: fmtDisplay(fit.sb) },
+      { label: '$\\Delta_b = t\\,S_b$', value: fmtDisplay(fit.deltaB) },
+      { label: '残差平方和 $\\mathrm{SSE}$', value: fmtDisplay(fit.sse) },
+      { label: '剩余标准差 $S$', value: fmtDisplay(fit.s) },
     ];
   }, [analysis, confidence, showFitR, showRR2]);
 
@@ -181,8 +229,8 @@ export function RegressionPage() {
       ? fitParameterDisplay(fit.a, fit.b, data.rawXs, data.rawYs)
       : { aText: '—', bText: String(fit.b.toPrecision(6)) };
     const warnings: string[] = [];
-    if (mode === 'weighted' && !analysis.validWeights) {
-      warnings.push(`权重数量（${weights.length}）与有效数据点数量（${fit.n}）不一致，已按等权 $w_i=1$ 处理`);
+    if (mode === 'weighted' && analysis.badWeights > 0) {
+      warnings.push(`**${analysis.badWeights}** 行权重缺失或不是正数，已按等权 $w_i=1$ 处理`);
     }
     const modeLabel = mode === 'ols' ? '普通 OLS' : mode === 'origin' ? '强制过原点' : '加权（通用扩展）';
     return makeResult({
@@ -207,7 +255,22 @@ export function RegressionPage() {
       warnings,
       provenance: { status: 'source-explicit', document: '课程基础知识202009.pptx / 讲义第II部分' },
     });
-  }, [analysis, mode, data, profile, weights.length]);
+  }, [analysis, mode, data, profile]);
+
+  const sendScalar = (name: string, value: number, unc: number) => {
+    send({
+      kind: 'scalar',
+      source: '线性拟合',
+      name,
+      valueText: String(value),
+      uncText: String(unc),
+      createdAt: new Date().toISOString(),
+    });
+    toast(`已送出 ${name}，在不确定度传播页确认填入`);
+    navigate('/tools/uncertainty');
+  };
+
+  const fitOk = analysis && !('error' in analysis) ? analysis : null;
 
   return (
     <>
@@ -218,54 +281,64 @@ export function RegressionPage() {
         </p>
       </header>
 
+      <PayloadBanner
+        accept="table"
+        onAccept={(p) => {
+          if (p.kind !== 'table') return;
+          if (p.headers.length <= 1) {
+            patch({ rows: p.rows.map((r, i) => [String(i + 1), r[0] ?? '', '']) });
+            toast('已填入：单列数据作为 y，x 自动取序号');
+          } else {
+            patch({ rows: p.rows.map((r) => [r[0] ?? '', r[1] ?? '', r[2] ?? '']) });
+            toast('已填入前两列作为 x / y');
+          }
+        }}
+      />
+
       <div className="tool-layout">
         <div className="stack">
-          <Panel title="数据与选项" sub="两列成对数据，可直接从 Excel 粘贴">
-            <PairInput label="x / y 数据（两列）" onChange={(xs, ys, rawXs, rawYs) => setData({ xs, ys, rawXs, rawYs })} />
+          <Panel title="数据与选项" sub="两列成对数据，可直接从 Excel 粘贴或导入 CSV">
+            <DataGrid
+              columns={gridColumns}
+              rows={rows}
+              onChange={(next) => patch({ rows: next })}
+              defaultRows={8}
+              hint="x / y 成对录入；无法解析的单元格按缺失处理"
+            />
             <div className="form-grid" style={{ marginTop: 10 }}>
               <Field label="拟合方式">
-                <select className="select" value={mode} onChange={(e) => setMode(e.target.value as FitMode)}>
+                <select className="select" value={mode} onChange={(e) => patch({ mode: e.target.value as FitMode })}>
                   <option value="ols">普通最小二乘 y=a+bx</option>
                   <option value="origin">强制过原点 y=bx</option>
                   <option value="weighted">加权线性拟合（通用扩展）</option>
                 </select>
               </Field>
               <Field label="$x$ 变换">
-                <select className="select" value={xTransform} onChange={(e) => setXTransform(e.target.value)}>
+                <select className="select" value={xTransform} onChange={(e) => patch({ xTransform: e.target.value })}>
                   {TRANSFORM_ORDER.map((k) => <option key={k} value={k}>{TRANSFORM_META[k].option('x')}</option>)}
                 </select>
               </Field>
               <Field label="$y$ 变换">
-                <select className="select" value={yTransform} onChange={(e) => setYTransform(e.target.value)}>
+                <select className="select" value={yTransform} onChange={(e) => patch({ yTransform: e.target.value })}>
                   {TRANSFORM_ORDER.map((k) => <option key={k} value={k}>{TRANSFORM_META[k].option('y')}</option>)}
                 </select>
               </Field>
               <Field label="交换 $x$ / $y$" hint={swapXY ? '当前已交换：以原 y 列为自变量拟合' : '默认以 x 列为自变量'}>
                 <div>
-                  <Button variant={swapXY ? 'primary' : 'default'} aria-pressed={swapXY} onClick={() => setSwapXY((v) => !v)}>交换 x/y</Button>
+                  <Button variant={swapXY ? 'primary' : 'default'} aria-pressed={swapXY} onClick={() => patch({ swapXY: !swapXY })}>交换 x/y</Button>
                 </div>
+              </Field>
+              <Field label="横轴名称（含单位）" hint="留空使用默认标签">
+                <input className="input" value={xName} onChange={(e) => patch({ xName: e.target.value })} placeholder={defaultXLabel} />
+              </Field>
+              <Field label="纵轴名称（含单位）" hint="留空使用默认标签">
+                <input className="input" value={yName} onChange={(e) => patch({ yName: e.target.value })} placeholder={defaultYLabel} />
               </Field>
             </div>
             {mode === 'weighted' && (
               <div style={{ marginTop: 8 }}>
-                <Field
-                  label="权重 $w_i$（每行一个，与数据点一一对应）"
-                  hint={`通常取 $w_i = 1/u_i^2$（独立测量假设）；已识别 **${weights.length}** 个正权重，数量与数据点不一致时按等权处理`}
-                >
-                  <textarea
-                    className="textarea"
-                    rows={4}
-                    value={weightsText}
-                    onChange={(e) => setWeightsText(e.target.value)}
-                    placeholder={'每行一个正数权重，例如：\n1\n0.5\n0.25'}
-                  />
-                </Field>
-              </div>
-            )}
-            {mode === 'weighted' && (
-              <div style={{ marginTop: 8 }}>
                 <Notice variant="info">
-                  <MarkdownInline>加权线性拟合属于**通用扩展**，不是上传课程讲义的必修公式；所有权重必须为正。</MarkdownInline>
+                  <MarkdownInline>权重列通常取 $w_i = 1/u_i^2$（独立测量假设）；所有权重必须为正，缺失或非法权重将按等权处理并警告。加权线性拟合属于**通用扩展**，不是上传课程讲义的必修公式。</MarkdownInline>
                 </Notice>
               </div>
             )}
@@ -282,22 +355,14 @@ export function RegressionPage() {
         <div className="stack">
           {series.length === 2 && (
             <Panel title="拟合图">
-              <div className="form-grid" style={{ marginBottom: 8 }}>
-                <Field label="横轴名称（含单位）" hint="留空使用默认标签">
-                  <input className="input" value={xName} onChange={(e) => setXName(e.target.value)} placeholder={defaultXLabel} />
-                </Field>
-                <Field label="纵轴名称（含单位）" hint="留空使用默认标签">
-                  <input className="input" value={yName} onChange={(e) => setYName(e.target.value)} placeholder={defaultYLabel} />
-                </Field>
-              </div>
-              <PhysicsPlot title={`数据与拟合（${MODE_EQUATION[mode]}）`} xLabel={xLabel} yLabel={yLabel} series={series} />
+              <PhysicsPlot title={plotTitle} xLabel={xLabel} yLabel={yLabel} series={series} />
               <div style={{ marginTop: 8 }}>
-                <PlotChecklist title="拟合图" xLabel={xLabel} yLabel={yLabel} series={series} />
+                <PlotChecklist title={plotTitle} xLabel={xLabel} yLabel={yLabel} series={series} />
               </div>
             </Panel>
           )}
 
-          {analysis && !('error' in analysis) && (
+          {fitOk && (
             <Panel title="残差图" sub="残差应围绕 0 随机分布，无系统趋势">
               <PhysicsPlot
                 title="残差图"
@@ -309,7 +374,23 @@ export function RegressionPage() {
             </Panel>
           )}
 
-          <Panel title="拟合结果" sub={`修约规则来自当前标准：${profile.shortName}`}>
+          <Panel
+            title="拟合结果"
+            sub={`修约规则来自当前标准：${profile.shortName}`}
+            actions={fitOk ? (
+              <Menu
+                trigger="发送到…"
+                items={[
+                  { id: 'b', label: '斜率 $b \\pm \\Delta_b$ → 不确定度传播', icon: 'ruler' },
+                  { id: 'a', label: '截距 $a \\pm \\Delta_a$ → 不确定度传播', icon: 'ruler', disabled: !('a' in fitOk.fit) },
+                ]}
+                onSelect={(id) => {
+                  if (id === 'b') sendScalar('b', fitOk.fit.b, fitOk.fit.deltaB);
+                  if (id === 'a' && 'a' in fitOk.fit) sendScalar('a', fitOk.fit.a, fitOk.fit.deltaA);
+                }}
+              />
+            ) : undefined}
+          >
             {resultItem ? (
               <>
                 <table className="stat-table">
@@ -328,6 +409,7 @@ export function RegressionPage() {
               </>
             ) : (
               <EmptyState
+                icon="function"
                 title="等待数据"
                 hint={`至少输入 ${mode === 'origin' ? '2' : '3'} 对有效数据后开始拟合；无法解析的行与变换定义域外的取值会被忽略`}
               />
@@ -346,9 +428,9 @@ export function RegressionPage() {
               <Tex tex="r=\dfrac{S_{xy}}{\sqrt{S_{xx}\,S_{yy}}}" display />
               <Tex tex="S_b = |b|\sqrt{\dfrac{r^{-2}-1}{n-2}},\qquad S_a = S_b\sqrt{\overline{x^2}} = S_b\sqrt{\dfrac{1}{n}\sum_i x_i^2}" display />
               <Tex tex="\Delta_b = t_{0.95}(n{-}2)\,S_b,\qquad \Delta_a = t_{0.95}(n{-}2)\,S_a" display />
-              {analysis && !('error' in analysis) && 'r' in analysis.fit && (
+              {fitOk && 'r' in fitOk.fit && (
                 <div className="small muted">
-                  <MarkdownInline>{`交叉验证：课程式 $S_b$ = ${fmt(analysis.fit.sbCourse)}，规范式 $S/\\sqrt{S_{xx}}$ = ${fmt(analysis.fit.sb)}，两者一致。`}</MarkdownInline>
+                  <MarkdownInline>{`交叉验证：课程式 $S_b$ = ${fmtDisplay(fitOk.fit.sbCourse)}，规范式 $S/\\sqrt{S_{xx}}$ = ${fmtDisplay(fitOk.fit.sb)}，两者一致。`}</MarkdownInline>
                 </div>
               )}
               <div className="small muted">

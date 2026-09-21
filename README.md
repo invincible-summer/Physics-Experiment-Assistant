@@ -16,11 +16,11 @@
 ```bash
 npm install
 npm run dev        # 开发
-npm test           # 单元 + golden + 属性测试（122 个）
+npm test           # 单元 + golden + 属性测试（177 个）
 npm run test:coverage
 npm run typecheck
 npm run build      # 产线构建（GitHub Pages 子路径 base）
-npm run e2e        # Playwright 冒烟（需 npx playwright install chromium）
+npm run e2e        # Playwright 冒烟（10 用例，需 npx playwright install chromium）
 ```
 
 ## 标准配置（严格隔离）
@@ -54,7 +54,15 @@ npm run e2e        # Playwright 冒烟（需 npx playwright install chromium）
 
 ## 导出
 
-数据处理 Markdown / 最终结果 LaTeX / 表格 CSV / 项目 JSON（schema 校验 + 版本迁移）/ 图 SVG/PNG（打印白底）。
+完整实验报告（Markdown / 可编译 LaTeX：封面、实验信息、参数、数据表、拟合、全计算链、规则、诊断、审计日志）/ 数据处理片段 Markdown / 表格 CSV / 项目 JSON（schema 校验 + 版本迁移）/ 图 SVG/PNG/CSV（打印白底）；公式计算可导出含数值代入的完整过程 Markdown。
+
+## 工作流特性
+
+- 数据表格：Excel/TSV 粘贴与 CSV/TSV 文件导入、Enter/Tab/方向键导航、末行自动增行、结构级撤销/重做、派生列自动计算（支持派生列引用派生列）、行排除审计、非法单元格标红给原因
+- 数据处理工具（统计/拟合/加权平均/不确定度传播/绘图/计算器/单位换算）表格化录入，输入草稿本地保留；一个工具的输出可经「发送到…」数据总线送入另一个工具（统计列→拟合/加权平均，拟合参数→不确定度传播，任意表格→绘图），接收方确认后才填入
+- 绘图工作台（MATLAB/pyplot 风格）：多系列数据 + y=f(x) 表达式混合成图，坐标起点/终点、对数轴、轴名单位可配，SVG/PNG/CSV 导出
+- 公式聚合输入：平均值、标准偏差、相关系数等公式可直接粘贴原始数据列自动求和/派生，不必手工先算 Σx
+- 实验工作台：步骤导航带完成度状态（done/todo/attention）、顶栏进度、步骤翻页、结果检查器（结果/警告计数、审计日志）、计算失败保留上次成功结果
 
 ## 目录结构
 

@@ -1,5 +1,5 @@
 /** 单位换算：量纲族/单位选择 + 数值输入，量纲检查，温度值与温差语义区分。 */
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   convert, convertTemperature, dimensionToString, DimensionMismatchError,
   displayUnit, families, tryGetUnitDef, unitsOfFamily, unitZh,
@@ -7,6 +7,7 @@ import {
 import { Button, Field, Notice, Panel } from '../../components/ui';
 import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 import { useSettings } from '../../stores/settings';
+import { useToolDraft } from './use-tool-draft';
 
 const FAMILY_ZH: Record<string, string> = {
   length: '长度', area: '面积', volume: '体积', mass: '质量', time: '时间', frequency: '频率',
@@ -35,10 +36,12 @@ function formatValue(x: number): string {
 
 export function UnitsPage() {
   const showDimensionCheck = useSettings((s) => s.showDimensionCheck);
-  const [family, setFamily] = useState('length');
-  const [from, setFrom] = useState('m');
-  const [to, setTo] = useState('mm');
-  const [value, setValue] = useState('1');
+  const [draft, setDraft] = useToolDraft<{ family: string; from: string; to: string; value: string }>(
+    'units',
+    { family: 'length', from: 'm', to: 'mm', value: '1' },
+  );
+  const { family, from, to, value } = draft;
+  const patch = (p: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...p }));
 
   const units = useMemo(() => unitsOfFamily(family), [family]);
   const isTemp = family === 'temperature';
@@ -75,10 +78,9 @@ export function UnitsPage() {
                 className="select"
                 value={family}
                 onChange={(e) => {
-                  setFamily(e.target.value);
-                  const us = unitsOfFamily(e.target.value);
-                  setFrom(us[0] ?? '');
-                  setTo(us[1] ?? us[0] ?? '');
+                  const f = e.target.value;
+                  const us = unitsOfFamily(f);
+                  patch({ family: f, from: us[0] ?? '', to: us[1] ?? us[0] ?? '' });
                 }}
               >
                 {families().filter((f) => f !== 'dimensionless' && f !== 'angle').map((f) => (
@@ -87,21 +89,21 @@ export function UnitsPage() {
               </select>
             </Field>
             <Field label="数值">
-              <input className="input" value={value} inputMode="decimal" onChange={(e) => setValue(e.target.value)} />
+              <input className="input" value={value} inputMode="decimal" onChange={(e) => patch({ value: e.target.value })} />
             </Field>
             <Field label="从">
-              <select className="select" value={from} onChange={(e) => setFrom(e.target.value)}>
+              <select className="select" value={from} onChange={(e) => patch({ from: e.target.value })}>
                 {units.map((u) => <option key={u} value={u}>{`${displayUnit(u)}（${unitZh(u)}）`}</option>)}
               </select>
             </Field>
             <Field label="到">
-              <select className="select" value={to} onChange={(e) => setTo(e.target.value)}>
+              <select className="select" value={to} onChange={(e) => patch({ to: e.target.value })}>
                 {units.map((u) => <option key={u} value={u}>{`${displayUnit(u)}（${unitZh(u)}）`}</option>)}
               </select>
             </Field>
           </div>
           <div className="row-right" style={{ marginTop: 10 }}>
-            <Button size="sm" onClick={() => { setFrom(to); setTo(from); }}>交换</Button>
+            <Button size="sm" icon="swap" onClick={() => patch({ from: to, to: from })}>交换</Button>
           </div>
 
           {'error' in result && result.mismatch ? (

@@ -1,24 +1,60 @@
-/** 快速统计页（plan §9.1） */
-import { useMemo, useState } from 'react';
-import { ColumnInput } from './tool-inputs';
+/** 快速统计页（plan §9.1）：DataGrid 单列录入 + 统计量 + 当前标准下的直接测量不确定度 + 数据流转 */
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   mean, median, sampleStd, stdErrorOfMean, minOf, maxOf, rangeOf, halfRange,
 } from '../../core/statistics';
 import { courseDirect, gbtDirect } from '../../core/uncertainty';
+import { parseNumericText } from '../../core/numeric';
 import { useSettings } from '../../stores/settings';
 import { ResultCard } from '../../components/ResultInspector';
 import { makeResult } from '../../core/results';
-import { EmptyState, Notice, Panel } from '../../components/ui';
+import { EmptyState, Menu, Notice, Panel } from '../../components/ui';
 import { QuantityInput } from '../../components/QuantityInput';
 import { formatSigDigitsPercent } from '../../core/sigfig';
 import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
+import { DataGrid } from '../../components/DataGrid';
+import { useToolDraft } from './use-tool-draft';
+import { PayloadBanner } from './PayloadBanner';
+import { tablePayload, useToolBus } from './tool-bus';
+import { fmtDisplay } from './fmt';
+
+const GRID_COLUMNS = [{ id: 'x', header: '测量值 $x_i$' }];
+
+interface StatDraft {
+  rows: string[][];
+  instrumentError: string;
+  correction: string;
+}
+
+const INITIAL_DRAFT: StatDraft = {
+  rows: Array.from({ length: 8 }, () => ['']),
+  instrumentError: '',
+  correction: '',
+};
 
 export function StatisticsPage() {
   const profile = useSettings((s) => s.activeProfile());
   const profileName = profile.shortName;
-  const [values, setValues] = useState<number[]>([]);
-  const [instrumentError, setInstrumentError] = useState('');
-  const [correction, setCorrection] = useState('');
+  const navigate = useNavigate();
+  const send = useToolBus((s) => s.send);
+  const [draft, setDraft] = useToolDraft<StatDraft>('statistics', INITIAL_DRAFT);
+  const { rows, instrumentError, correction } = draft;
+  const setRows = (next: string[][]) => setDraft((d) => ({ ...d, rows: next }));
+  const setInstrumentError = (v: string) => setDraft((d) => ({ ...d, instrumentError: v }));
+  const setCorrection = (v: string) => setDraft((d) => ({ ...d, correction: v }));
+
+  /** 只取可解析的非空单元格；原始文本行保留在表格中（有效数字信息不丢） */
+  const values = useMemo(() => {
+    const out: number[] = [];
+    for (const row of rows) {
+      const raw = (row[0] ?? '').trim();
+      if (raw === '') continue;
+      const p = parseNumericText(raw);
+      if (p.ok) out.push(p.value);
+    }
+    return out;
+  }, [rows]);
 
   const stats = useMemo(() => {
     if (values.length === 0) return null;
@@ -78,18 +114,51 @@ export function StatisticsPage() {
     });
   }, [uncertaintyResult, profile]);
 
+  const hasData = values.length > 0;
+
   return (
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>快速统计</MarkdownInline></h1>
         <p className="page-lead">
-          <MarkdownInline>{`粘贴一列数据，得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownInline>
+          <MarkdownInline>{`表格录入一列测量值（可从 Excel 粘贴），得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownInline>
         </p>
       </header>
+
+      <PayloadBanner
+        accept="table"
+        onAccept={(p) => {
+          if (p.kind !== 'table') return;
+          setRows(p.rows.map((r) => [r[0] ?? '']));
+        }}
+      />
+
       <div className="tool-layout">
-        <Panel title="数据输入" sub="测量列与不确定度输入参数">
+        <Panel
+          title="数据输入"
+          sub="测量列与不确定度输入参数"
+          actions={hasData ? (
+            <Menu
+              trigger="发送到…"
+              items={[
+                { id: 'regression', label: '线性拟合（作为 y，x = 序号）', icon: 'function' },
+                { id: 'weighted-mean', label: '加权平均', icon: 'target' },
+              ]}
+              onSelect={(id) => {
+                send(tablePayload('快速统计 · 测量列', [{ header: 'x', index: 0 }], rows));
+                navigate(`/tools/${id}`);
+              }}
+            />
+          ) : undefined}
+        >
           <div className="stack">
-            <ColumnInput label="测量列" placeholder="每行一个数值" onChange={setValues} />
+            <DataGrid
+              columns={GRID_COLUMNS}
+              rows={rows}
+              onChange={setRows}
+              defaultRows={8}
+              hint="可直接粘贴 Excel 列；非法单元格标红并在计算时按缺失处理"
+            />
             <QuantityInput
               label={profile.kind === 'gbt' ? 'B 类半宽 $a$（默认矩形分布）' : '仪器误差限 $\\Delta_{仪}$'}
               value={instrumentError}
@@ -111,7 +180,7 @@ export function StatisticsPage() {
         <div className="stack">
           <Panel title="统计量">
             {!stats ? (
-              <EmptyState title="等待数据输入" hint="在左侧粘贴测量列后自动计算" />
+              <EmptyState icon="chart" title="等待数据输入" hint="在左侧表格输入测量列后自动计算" />
             ) : (
               <table className="stat-table">
                 <tbody>
@@ -134,7 +203,7 @@ export function StatisticsPage() {
             ) : resultItem ? (
               <ResultCard item={resultItem} profileName={profileName} />
             ) : (
-              <EmptyState title="等待仪器误差限" hint="填写左侧仪器误差限后计算" />
+              <EmptyState icon="ruler" title="等待仪器误差限" hint="填写左侧仪器误差限后计算" />
             )}
           </Panel>
           {profile.kind === 'gbt' && (
@@ -152,7 +221,7 @@ function StatRow({ label, value }: { label: string; value: number }) {
   return (
     <tr>
       <td><MarkdownInline>{label}</MarkdownInline></td>
-      <td className="num">{Number.isFinite(value) ? value.toPrecision(8).replace(/\.?0+$/, '') : '—'}</td>
+      <td className="num">{fmtDisplay(value, 8)}</td>
     </tr>
   );
 }

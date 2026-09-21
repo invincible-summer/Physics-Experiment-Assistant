@@ -1,8 +1,8 @@
 /**
  * PhysicsPlot — ECharts SVG 图表组件。
- * 轴名+单位+图名+数据点+拟合线区分；误差棒（custom series）；
- * 多系列颜色+符号双编码（不以颜色为唯一编码）；SVG/PNG 白底导出；
- * 主题感知配色；PlotChecklist 图表规范检查。
+ * 轴名+单位+图名+数据点+拟合线区分；误差棒（custom series，不进图例，tooltip 显示 值 ± 误差）；
+ * 多系列颜色+符号双编码（不以颜色为唯一编码）；SVG/PNG 白底导出 + 图中数据 CSV 导出；
+ * 主题感知配色；ResizeObserver 自适应容器尺寸；PlotChecklist 图表规范检查。
  */
 import { useEffect, useMemo, useRef } from 'react';
 import * as echarts from 'echarts';
@@ -31,12 +31,17 @@ export interface PhysicsPlotProps {
   yLabel: string;
   series: PlotSeries[];
   height?: number;
-  /** 拟合注释（如 y = a + bx, r = 0.998） */
+  /** 拟合注释（如 y = a + bx, r = 0.998）；右上角等宽小字，多行，LaTeX 原样显示 */
   annotations?: { text: string }[];
   xLog?: boolean;
   yLog?: boolean;
   /** 隐藏图例（单系列） */
   hideLegend?: boolean;
+  /** 轴范围（横/纵起点与终点）；留空自动伸展。对数轴下非正值由调用方过滤 */
+  xMin?: number;
+  xMax?: number;
+  yMin?: number;
+  yMax?: number;
 }
 
 const FALLBACK_COLORS = ['#0b5cad', '#b3402f', '#1a7f37', '#7d3c98', '#9a6208', '#0e7490'];
@@ -62,7 +67,7 @@ function seriesPalette(): string[] {
 export function PhysicsPlot(props: PhysicsPlotProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  const { title, xLabel, yLabel, series, height = 340, annotations = [], xLog, yLog, hideLegend } = props;
+  const { title, xLabel, yLabel, series, height = 340, annotations = [], xLog, yLog, hideLegend, xMin, xMax, yMin, yMax } = props;
   const theme = useSettings((s) => s.theme);
   const defaultPlotFormat = useSettings((s) => s.defaultPlotFormat);
   const plotWhiteBackground = useSettings((s) => s.plotWhiteBackground);
@@ -71,8 +76,11 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
     const ink2 = cssVar('--ink-2', '#5b574c');
     const ink3 = cssVar('--ink-3', '#918c7d');
     const line = cssVar('--line', '#e5e2d7');
+    const mono = cssVar('--mono', 'monospace');
     const palette = seriesPalette();
     const realSeries: echarts.SeriesOption[] = [];
+    /** 与 realSeries 对齐：每个 option 系列归属的输入系列（tooltip 反查误差用） */
+    const seriesOwners: PlotSeries[] = [];
     series.forEach((s, idx) => {
       const color = s.color ?? palette[idx % palette.length];
       const symbol = s.symbol ?? SERIES_SYMBOLS[idx % SERIES_SYMBOLS.length];
@@ -87,6 +95,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         itemStyle: { color },
         lineStyle: s.dashed ? { type: 'dashed', color, width: 2 } : { color, width: 2 },
       });
+      seriesOwners.push(s);
       if (s.yError && s.yError.some((e) => e > 0)) {
         realSeries.push({
           name: `${s.name} 误差棒`,
@@ -110,6 +119,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
           silent: true,
           z: 1,
         });
+        seriesOwners.push(s);
       }
       if (s.xError && s.xError.some((e) => e > 0)) {
         realSeries.push({
@@ -134,6 +144,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
           silent: true,
           z: 1,
         });
+        seriesOwners.push(s);
       }
     });
 
@@ -145,13 +156,49 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         top: 4,
         textStyle: { fontSize: 13.5, fontWeight: 650, color: ink2 },
       },
+      // 图例只列真实数据系列，误差棒 custom 系列不进入图例
       legend: hideLegend || series.length <= 1 ? undefined : {
         top: 28,
         type: 'scroll',
         textStyle: { color: ink2 },
+        data: series.map((s) => s.name),
       },
       grid: { left: 62, right: 22, top: annotations.length > 0 ? 74 : 54, bottom: 44 },
-      tooltip: { trigger: 'item' },
+      tooltip: {
+        trigger: 'item',
+        formatter: (params: unknown) => {
+          const p = params as { seriesIndex?: number; seriesName?: string; dataIndex?: number; value?: unknown };
+          const owner = p.seriesIndex !== undefined ? seriesOwners[p.seriesIndex] : undefined;
+          if (!owner || !Array.isArray(p.value)) return String(p.seriesName ?? '');
+          const i = p.dataIndex ?? 0;
+          const x = Number(p.value[0]);
+          const y = Number(p.value[1]);
+          const xe = owner.xError?.[i];
+          const ye = owner.yError?.[i];
+          const withErr = (v: number, e?: number) =>
+            typeof e === 'number' && e > 0 ? `${fmtPlotNum(v)} ± ${fmtPlotNum(e)}` : fmtPlotNum(v);
+          return `${owner.name}<br/>${xLabel}: ${withErr(x, xe)}<br/>${yLabel}: ${withErr(y, ye)}`;
+        },
+      },
+      // 拟合注释：右上角等宽小字，多行；LaTeX 内容仅原样文本，不渲染 KaTeX
+      graphic: annotations.length > 0
+        ? [
+          {
+            type: 'text',
+            right: 16,
+            top: 30,
+            silent: true,
+            style: {
+              text: annotations.map((a) => a.text).join('\n'),
+              fontSize: 11.5,
+              lineHeight: 16,
+              fontFamily: mono,
+              fill: ink3,
+              align: 'right',
+            },
+          },
+        ]
+        : [],
       xAxis: {
         name: xLabel,
         nameLocation: 'middle',
@@ -159,6 +206,8 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         nameTextStyle: { fontSize: 12.5, color: ink2 },
         type: xLog ? 'log' : 'value',
         scale: true,
+        min: xMin,
+        max: xMax,
         axisLine: { show: true, lineStyle: { color: ink3 } },
         axisLabel: { color: ink2 },
         splitLine: { show: false },
@@ -170,6 +219,8 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         nameTextStyle: { fontSize: 12.5, color: ink2 },
         type: yLog ? 'log' : 'value',
         scale: true,
+        min: yMin,
+        max: yMax,
         axisLine: { show: true, lineStyle: { color: ink3 } },
         axisLabel: { color: ink2 },
         splitLine: { show: true, lineStyle: { color: line, opacity: 0.6 } },
@@ -178,7 +229,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
       series: realSeries,
     };
     // theme 作为依赖：主题切换后重建配色
-  }, [title, xLabel, yLabel, series, annotations, xLog, yLog, hideLegend, theme]);
+  }, [title, xLabel, yLabel, series, annotations, xLog, yLog, hideLegend, xMin, xMax, yMin, yMax, theme]);
 
   useEffect(() => {
     if (!elRef.current) return;
@@ -186,22 +237,16 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
       chartRef.current = echarts.init(elRef.current, undefined, { renderer: 'svg' });
     }
     chartRef.current.setOption(option, true);
-    if (annotations.length > 0 && chartRef.current) {
-      chartRef.current.setOption({
-        graphic: annotations.map((a, i) => ({
-          type: 'text',
-          left: 'center',
-          top: 52 + i * 18,
-          style: { text: a.text, fontSize: 12, fill: cssVar('--ink-2', '#5b574c') },
-        })),
-      });
-    }
-    const onResize = () => chartRef.current?.resize();
-    window.addEventListener('resize', onResize);
-    return () => {
-      window.removeEventListener('resize', onResize);
-    };
-  }, [option, annotations]);
+  }, [option]);
+
+  // 容器尺寸变化（侧栏折叠、检查器开合、height 变化、窗口缩放）时重排图表
+  useEffect(() => {
+    const el = elRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => chartRef.current?.resize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -245,10 +290,29 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
     toast('已导出 PNG 图');
   };
 
+  const exportCSV = () => {
+    const lines = ['series,x,y,x_error,y_error'];
+    for (const s of series) {
+      s.points.forEach((p, i) => {
+        lines.push([
+          csvCell(s.name),
+          String(p.x),
+          String(p.y),
+          s.xError && s.xError[i] !== undefined ? String(s.xError[i]) : '',
+          s.yError && s.yError[i] !== undefined ? String(s.yError[i]) : '',
+        ].join(','));
+      });
+    }
+    // BOM 前缀保证 Excel 打开中文系列名不乱码
+    const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    downloadBlob(blob, `${sanitize(title)}.csv`);
+    toast('已导出 CSV 数据');
+  };
+
   const [first, second] = defaultPlotFormat === 'png' ? ['png', 'svg'] as const : ['svg', 'png'] as const;
   const exporters = {
-    svg: <Button key="svg" size="sm" variant={first === 'svg' ? 'default' : 'ghost'} onClick={exportSVG}>导出 SVG</Button>,
-    png: <Button key="png" size="sm" variant={first === 'png' ? 'default' : 'ghost'} onClick={exportPNG}>导出 PNG</Button>,
+    svg: <Button key="svg" size="sm" variant={first === 'svg' ? 'default' : 'ghost'} icon="download" onClick={exportSVG}>导出 SVG</Button>,
+    png: <Button key="png" size="sm" variant={first === 'png' ? 'default' : 'ghost'} icon="download" onClick={exportPNG}>导出 PNG</Button>,
   };
 
   return (
@@ -257,6 +321,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
       <div className="row-right" style={{ marginTop: 4 }}>
         {exporters[first]}
         {exporters[second]}
+        <Button size="sm" variant="ghost" icon="download" onClick={exportCSV}>导出 CSV</Button>
       </div>
     </div>
   );
@@ -286,6 +351,20 @@ export function PlotChecklist({ title, xLabel, yLabel, series }: {
       <MarkdownList items={issues} />
     </Notice>
   );
+}
+
+/** tooltip 数值显示：6 位有效数字，极端量级用科学记数（仅显示用） */
+function fmtPlotNum(v: number): string {
+  if (!Number.isFinite(v)) return String(v);
+  if (v === 0) return '0';
+  const a = Math.abs(v);
+  if (a >= 1e6 || a < 1e-4) return v.toExponential(3);
+  return String(Number(v.toPrecision(6)));
+}
+
+/** CSV 单元格：含逗号/引号/换行时按 RFC 4180 加引号转义 */
+function csvCell(text: string): string {
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 function downloadBlob(blob: Blob, filename: string) {

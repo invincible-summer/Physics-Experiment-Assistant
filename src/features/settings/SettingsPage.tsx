@@ -73,6 +73,7 @@ export function SettingsPage() {
 
       <Panel
         title="标准配置"
+        icon="book"
         sub="切换后所有计算立即按新标准执行"
         actions={<Button size="sm" onClick={() => setRulesOpen(true)}>{`查看当前规则详情（${profile.shortName}）`}</Button>}
       >
@@ -197,7 +198,7 @@ export function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="外观" sub="亮/暗主题均遵循 WCAG AA 对比度">
+      <Panel title="外观" icon="sun" sub="亮/暗主题均遵循 WCAG AA 对比度">
         <Field label="主题" hint="「跟随系统」随操作系统的亮暗设置自动切换">
           <Tabs
             ariaLabel="主题"
@@ -208,7 +209,7 @@ export function SettingsPage() {
         </Field>
       </Panel>
 
-      <Panel title="数值与有效数字" sub="中间计算永远保留全精度，仅显示与导出时修约（`AGENTS.md §4.2/§4.5`）">
+      <Panel title="数值与有效数字" icon="calculator" sub="中间计算永远保留全精度，仅显示与导出时修约（`AGENTS.md §4.2/§4.5`）">
         <div className="form-grid">
           <Field label="最终不确定度有效数字" hint="选择「由标准配置决定」时，局部组件不得覆盖（`plan.md §3.2`）">
             <select
@@ -245,7 +246,7 @@ export function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="单位与量纲">
+      <Panel title="单位与量纲" icon="ruler">
         <div className="check-list">
           <label className="check-item checked" style={{ opacity: 0.8 }}>
             <input type="checkbox" checked disabled readOnly />
@@ -265,7 +266,7 @@ export function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="图表与导出">
+      <Panel title="图表与导出" icon="chart">
         <div className="form-grid">
           <Field label="默认导出格式" hint="SVG 为矢量格式，打印优先；PNG 用于位图场景">
             <select
@@ -287,6 +288,16 @@ export function SettingsPage() {
               <option value="parens">\(...\)</option>
             </select>
           </Field>
+          <Field label="LaTeX 单位风格" hint="导出 LaTeX 结果时单位的包裹方式（`\mathrm{}` 为正体直立，`\text{}` 随正文）">
+            <select
+              className="select"
+              value={settings.latexUnitStyle ? 'mathrm' : 'text'}
+              onChange={(e) => settings.set('latexUnitStyle', e.target.value === 'mathrm')}
+            >
+              <option value="mathrm">{'\\mathrm{}（默认）'}</option>
+              <option value="text">{'\\text{}'}</option>
+            </select>
+          </Field>
         </div>
         <div className="check-list" style={{ marginTop: 10 }}>
           <label className={`check-item${settings.plotWhiteBackground ? ' checked' : ''}`}>
@@ -305,10 +316,26 @@ export function SettingsPage() {
             />
             <span className="small"><MarkdownInline>{'拟合图默认显示相关系数 $r$（课程模式优先展示 $r$，$R^2$ 为附加指标）'}</MarkdownInline></span>
           </label>
+          <label className={`check-item${settings.showRR2 ? ' checked' : ''}`}>
+            <input
+              type="checkbox"
+              checked={settings.showRR2}
+              onChange={(e) => settings.set('showRR2', e.target.checked)}
+            />
+            <span className="small"><MarkdownInline>{'拟合结果同时显示 $R^2$（工程扩展指标，课程模式仍以 $r$ 为准）'}</MarkdownInline></span>
+          </label>
+          <label className={`check-item${settings.defaultErrorBars ? ' checked' : ''}`}>
+            <input
+              type="checkbox"
+              checked={settings.defaultErrorBars}
+              onChange={(e) => settings.set('defaultErrorBars', e.target.checked)}
+            />
+            <span className="small"><MarkdownInline>实验图默认绘制误差棒（数据点带不确定度时生效）</MarkdownInline></span>
+          </label>
         </div>
       </Panel>
 
-      <Panel title="数据与隐私" sub="实验数据不上传任何服务器">
+      <Panel title="数据与隐私" icon="folder" sub="实验数据不上传任何服务器">
         <Notice variant="info">
           <MarkdownInline>{'**数据默认仅保存在本浏览器（IndexedDB）**；轻量偏好保存在 localStorage。清空浏览器站点数据会删除全部项目。'}</MarkdownInline>
         </Notice>
@@ -336,8 +363,12 @@ export function SettingsPage() {
               const text = await file.text();
               const result = await importProjectJson(text);
               if (result.ok) {
-                setImportCount((c) => c + 1);
-                toast(`导入成功：${result.project?.title}${result.migrationNote ? `（${result.migrationNote}）` : ''}`);
+                setImportCount((c) => c + result.imported);
+                toast(
+                  `导入完成：新增 ${result.imported} 个项目`
+                  + `${result.skipped > 0 ? `，跳过 ${result.skipped} 条无效数据` : ''}`
+                  + `${result.migrationNote ? `（${result.migrationNote}）` : ''}`,
+                );
               } else {
                 toast(`导入失败：${result.error}`);
               }
@@ -357,9 +388,12 @@ export function SettingsPage() {
             <span className="small muted"><MarkdownInline>{`本次会话已导入 ${importCount} 个项目`}</MarkdownInline></span>
           )}
         </div>
+        <div className="small muted" style={{ marginTop: 8 }}>
+          <MarkdownInline>导入支持：单项目信封、「导出全部」归档（逐条校验，坏条目跳过并计数）与旧版裸数据；项目页也可直接导入。</MarkdownInline>
+        </div>
       </Panel>
 
-      <Panel title="功能开关">
+      <Panel title="功能开关" icon="settings">
         <div className="check-list">
           {FEATURE_FLAGS.map(([key, label, desc]) => (
             <label key={key} className={`check-item${settings[key] ? ' checked' : ''}`}>
@@ -374,6 +408,21 @@ export function SettingsPage() {
               </span>
             </label>
           ))}
+        </div>
+      </Panel>
+
+      <Panel title="恢复默认设置" sub="一键回到初始偏好；不影响已保存的项目数据" icon="undo">
+        <div className="row">
+          <ConfirmButton
+            variant="danger"
+            size="sm"
+            question="将全部设置恢复为默认值？包括标准配置、主题、数值规则与功能开关（项目数据不受影响）。"
+            onConfirm={() => {
+              settings.resetToDefaults();
+              toast('已恢复全部默认设置');
+            }}
+          >恢复全部默认设置</ConfirmButton>
+          <span className="small muted"><MarkdownInline>{'重置后立即生效并写入 localStorage；标准配置回到默认的 `tsinghua-a1-2026`。'}</MarkdownInline></span>
         </div>
       </Panel>
 

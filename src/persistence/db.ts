@@ -106,6 +106,21 @@ export async function clearAllProjects(): Promise<void> {
   await db.projects.clear();
 }
 
+/** 复制项目：深拷贝、新 id、标题加「副本」，并在审计日志留痕 */
+export async function duplicateProject(id: string): Promise<StoredProject | undefined> {
+  const src = await db.projects.get(id);
+  if (!src) return undefined;
+  const now = new Date().toISOString();
+  const copy: StoredProject = JSON.parse(JSON.stringify(src)) as StoredProject;
+  copy.id = newProjectId();
+  copy.title = `${src.title}（副本）`;
+  copy.createdAt = now;
+  copy.updatedAt = now;
+  copy.auditLog = [...copy.auditLog, { at: now, action: 'duplicate', detail: `复制自「${src.title}」` }];
+  await db.projects.add(copy);
+  return copy;
+}
+
 // ---------------------------------------------------------------------------
 // JSON 导入导出（带 schema 校验）
 // ---------------------------------------------------------------------------
@@ -129,11 +144,29 @@ const ProjectSchema = z.object({
   uiState: z.record(z.unknown()).optional(),
 });
 
-export interface ImportResult {
+/** 载荷形态：单项目信封 / 「导出全部」归档信封 / 旧版裸数组或裸对象 */
+export type ProjectImportPayloadKind = 'single' | 'archive' | 'legacy';
+
+/** 导入解析结果（纯解析，不触碰 IndexedDB，便于在无库环境测试） */
+export interface ProjectImportParseResult {
   ok: boolean;
-  project?: StoredProject;
+  payloadKind?: ProjectImportPayloadKind;
+  /** 校验通过、可导入的项目 */
+  projects: StoredProject[];
+  /** 因结构非法或版本过高被跳过的条目数 */
+  skipped: number;
   error?: string;
   /** 版本迁移说明 */
+  migrationNote?: string;
+}
+
+/** 写入 IndexedDB 的导入结果 */
+export interface ImportProjectsResult {
+  ok: boolean;
+  imported: number;
+  skipped: number;
+  payloadKind?: ProjectImportPayloadKind;
+  error?: string;
   migrationNote?: string;
 }
 
@@ -149,39 +182,142 @@ export function serializeProject(project: StoredProject): string {
   );
 }
 
-export function deserializeProject(json: string): ImportResult {
-  try {
-    const parsed = JSON.parse(json);
-    if (parsed?.__app__ !== 'physics-experiment-assistant') {
-      return { ok: false, error: '不是本项目导出的 JSON 文件（缺少应用标识）' };
-    }
-    const check = ProjectSchema.safeParse(parsed.project);
+/** 「导出全部」归档信封：自家备份必须能被自家导入器读回 */
+export function serializeProjectsArchive(projects: StoredProject[]): string {
+  return JSON.stringify(
+    {
+      __app__: 'physics-experiment-assistant',
+      kind: 'projects-archive',
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      projects,
+    },
+    null,
+    2,
+  );
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** 逐条校验并做版本迁移；坏条目跳过并计数，不拖垮整个备份 */
+function parseProjectEntries(entries: unknown[], kind: ProjectImportPayloadKind): ProjectImportParseResult {
+  const projects: StoredProject[] = [];
+  const migratedFrom: number[] = [];
+  let skipped = 0;
+  let firstIssue: string | undefined;
+  for (const entry of entries) {
+    const check = ProjectSchema.safeParse(entry);
     if (!check.success) {
-      return { ok: false, error: `项目结构校验失败：${check.error.issues[0]?.message ?? '未知错误'}` };
+      skipped += 1;
+      firstIssue ??= check.error.issues[0]?.message;
+      continue;
     }
     const p = check.data as StoredProject;
-    let migrationNote: string | undefined;
     if (p.schemaVersion > CURRENT_SCHEMA_VERSION) {
-      return { ok: false, error: `项目 schemaVersion=${p.schemaVersion} 高于当前应用支持的 ${CURRENT_SCHEMA_VERSION}，请升级应用` };
+      skipped += 1;
+      firstIssue ??= `schemaVersion=${p.schemaVersion} 高于当前应用支持的 ${CURRENT_SCHEMA_VERSION}`;
+      continue;
     }
     if (p.schemaVersion < CURRENT_SCHEMA_VERSION) {
       // 升级迁移钩子：schemaVersion 递增时在此追加
+      migratedFrom.push(p.schemaVersion);
       p.schemaVersion = CURRENT_SCHEMA_VERSION;
-      migrationNote = `项目结构已从 v${p.schemaVersion} 迁移到 v${CURRENT_SCHEMA_VERSION}`;
     }
-    return { ok: true, project: p, migrationNote };
-  } catch (err) {
-    return { ok: false, error: `JSON 解析失败：${(err as Error).message}` };
+    projects.push(p);
   }
+  const migrationNote = migratedFrom.length > 0
+    ? `${migratedFrom.length} 个项目结构已从 v${Math.min(...migratedFrom)} 等旧版本迁移到 v${CURRENT_SCHEMA_VERSION}`
+    : undefined;
+  if (projects.length === 0) {
+    return {
+      ok: false, payloadKind: kind, projects, skipped,
+      error: `没有可导入的有效项目${firstIssue ? `：${firstIssue}` : ''}`,
+      migrationNote,
+    };
+  }
+  return { ok: true, payloadKind: kind, projects, skipped, migrationNote };
 }
 
-export async function importProjectJson(json: string): Promise<ImportResult> {
-  const result = deserializeProject(json);
-  if (!result.ok || !result.project) return result;
-  // 导入为副本，避免 id 冲突
-  result.project.id = newProjectId();
-  result.project.title = `${result.project.title}（导入）`;
-  result.project.updatedAt = new Date().toISOString();
-  await db.projects.add(result.project);
-  return result;
+/**
+ * 解析/规范化导入载荷（纯函数）。接受三种载荷：
+ * ① 单项目信封 `{__app__, project}`；
+ * ② 「导出全部」归档信封 `{__app__, kind:'projects-archive', projects:[...]}`；
+ * ③ 旧版裸导出（裸数组 / 裸对象），按各条目尽力校验。
+ */
+export function parseProjectImport(text: string): ProjectImportParseResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    return { ok: false, projects: [], skipped: 0, error: `JSON 解析失败：${(err as Error).message}` };
+  }
+
+  if (isRecord(parsed) && parsed.__app__ === 'physics-experiment-assistant') {
+    // ① 单项目信封（现有格式）
+    if ('project' in parsed) {
+      const check = ProjectSchema.safeParse(parsed.project);
+      if (!check.success) {
+        return {
+          ok: false, payloadKind: 'single', projects: [], skipped: 1,
+          error: `项目结构校验失败：${check.error.issues[0]?.message ?? '未知错误'}`,
+        };
+      }
+      const p = check.data as StoredProject;
+      if (p.schemaVersion > CURRENT_SCHEMA_VERSION) {
+        return {
+          ok: false, payloadKind: 'single', projects: [], skipped: 1,
+          error: `项目 schemaVersion=${p.schemaVersion} 高于当前应用支持的 ${CURRENT_SCHEMA_VERSION}，请升级应用`,
+        };
+      }
+      let migrationNote: string | undefined;
+      if (p.schemaVersion < CURRENT_SCHEMA_VERSION) {
+        const from = p.schemaVersion;
+        p.schemaVersion = CURRENT_SCHEMA_VERSION;
+        migrationNote = `项目结构已从 v${from} 迁移到 v${CURRENT_SCHEMA_VERSION}`;
+      }
+      return { ok: true, payloadKind: 'single', projects: [p], skipped: 0, migrationNote };
+    }
+    // ② 项目归档信封
+    if (parsed.kind === 'projects-archive' || Array.isArray(parsed.projects)) {
+      if (!Array.isArray(parsed.projects)) {
+        return { ok: false, payloadKind: 'archive', projects: [], skipped: 0, error: '项目归档缺少 projects 数组' };
+      }
+      return parseProjectEntries(parsed.projects, 'archive');
+    }
+    return { ok: false, projects: [], skipped: 0, error: '无法识别的导出信封（既非单项目也非项目归档）' };
+  }
+
+  // ③ 旧版裸导出：裸数组 / 裸对象
+  const entries = Array.isArray(parsed) ? parsed : isRecord(parsed) ? [parsed] : [];
+  if (entries.length === 0) {
+    return { ok: false, projects: [], skipped: 0, error: '不是本项目导出的 JSON 文件（缺少应用标识或可识别的项目数据）' };
+  }
+  return parseProjectEntries(entries, 'legacy');
+}
+
+/** 导入 JSON：Zod 校验后强制重分配 id 再入库，避免与现有项目冲突 */
+export async function importProjectJson(json: string): Promise<ImportProjectsResult> {
+  const parsed = parseProjectImport(json);
+  if (!parsed.ok) {
+    return { ok: false, imported: 0, skipped: parsed.skipped, error: parsed.error };
+  }
+  const now = new Date().toISOString();
+  for (const p of parsed.projects) {
+    p.id = newProjectId();
+    p.updatedAt = now;
+    if (parsed.payloadKind === 'single') {
+      // 单项目导入沿用旧行为：标题加后缀以示副本；归档/旧版恢复保留原标题
+      p.title = `${p.title}（导入）`;
+    }
+    await db.projects.add(p);
+  }
+  return {
+    ok: true,
+    imported: parsed.projects.length,
+    skipped: parsed.skipped,
+    payloadKind: parsed.payloadKind,
+    migrationNote: parsed.migrationNote,
+  };
 }

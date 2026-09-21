@@ -1,4 +1,4 @@
-/** 组件层：按钮、徽章、面板、提示、表单、结果卡、数据表、对话框等 */
+/** 组件层：按钮、徽章、面板、提示、表单、结果卡、数据表、对话框、菜单、步骤器等 */
 
 /* ---------- 按钮 ---------- */
 .btn {
@@ -10,7 +10,7 @@
   padding: 5px 13px;
   border-radius: 8px;
   border: 1px solid var(--line-strong);
-  background: var(--paper-raised);
+  background: linear-gradient(180deg, var(--paper-raised), var(--paper-hover));
   color: var(--ink-1);
   font-size: 13.5px;
   line-height: 1.4;
@@ -19,7 +19,10 @@
 }
 .btn:hover:not(:disabled) {
   border-color: var(--ink-3);
-  background: var(--paper-hover);
+  background: var(--paper-raised);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
 }
 .btn:disabled {
   opacity: 0.48;
@@ -32,14 +35,18 @@
   font-size: 12.5px;
   border-radius: 7px;
 }
+.btn .icon {
+  margin: 0 -1px;
+}
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+  border-color: var(--accent-strong);
   color: var(--on-accent);
   font-weight: 600;
+  box-shadow: var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
   border-color: var(--accent-strong);
 }
 .btn-ghost {
@@ -72,7 +79,7 @@
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   padding: 1.5px 9px;
   border-radius: 999px;
   font-size: 12px;
@@ -81,12 +88,17 @@
   border: 1px solid transparent;
   white-space: nowrap;
 }
+.badge .icon {
+  width: 13px;
+  height: 13px;
+}
 .badge-default { background: var(--paper-sunken); color: var(--ink-2); border-color: var(--line); }
 .badge-accent { background: var(--accent-soft); color: var(--accent-ink); border-color: var(--accent-soft-strong); }
 .badge-success { background: var(--success-soft); color: var(--success); }
 .badge-warning { background: var(--warning-soft); color: var(--warning); }
 .badge-danger { background: var(--danger-soft); color: var(--danger); }
 .badge-info { background: var(--info-soft); color: var(--info); }
+.badge-copper { background: var(--copper-soft); color: var(--copper); }
 
 /* ---------- 面板 ---------- */
 .panel {
@@ -109,6 +121,14 @@
   font-weight: 650;
   font-size: 15px;
   line-height: 1.45;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-title .icon {
+  color: var(--ink-3);
+  width: 16px;
+  height: 16px;
 }
 .panel-sub {
   margin-top: 2px;
@@ -129,6 +149,18 @@
 .panel-head + .panel-body {
   padding-top: 10px;
 }
+/* 关键面板：顶部强调线 */
+.panel-accent {
+  position: relative;
+  overflow: hidden;
+}
+.panel-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), transparent 70%);
+}
 
 /* ---------- 提示 / 公告 ---------- */
 .notice {
@@ -142,6 +174,13 @@
 .n-title {
   font-weight: 650;
   margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.n-title .icon {
+  width: 15px;
+  height: 15px;
 }
 .notice-info { background: var(--info-soft); border-color: color-mix(in srgb, var(--info) 30%, transparent); border-left-color: var(--info); }
 .notice-success { background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 30%, transparent); border-left-color: var(--success); }
@@ -191,7 +230,7 @@
   padding: 6px 10px;
   font-size: 14px;
   color: var(--ink-1);
-  min-height: 32px;
+  min-height: 34px;
 }
 .input::placeholder, .textarea::placeholder {
   color: var(--ink-3);
@@ -295,6 +334,21 @@
 .fold-body {
   padding: 7px 0 4px 15px;
   font-size: var(--fs-sm);
+}
+
+/* 公式页列聚合输入面板 */
+.agg-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-raised);
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+.agg-panel > summary {
+  padding: 2px 0;
+}
+.agg-panel .fold-body {
+  padding: 6px 0 2px 15px;
 }
 
 /* ---------- 结果卡 ---------- */
@@ -553,6 +607,20 @@
 .grid-footnote {
   margin-top: 5px;
 }
+/* 列宽拖动手柄 */
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+}
+.col-resize:hover,
+.col-resize.active {
+  background: var(--accent-soft-strong);
+}
 
 /* ---------- 统计/键值表 ---------- */
 .stat-table {
@@ -581,7 +649,7 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(30, 26, 18, 0.45);
+  background: rgba(20, 26, 31, 0.45);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -589,7 +657,7 @@
   overflow-y: auto;
 }
 :root[data-theme="dark"] .modal-backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.62);
 }
 .modal-card {
   background: var(--paper-raised);
@@ -616,6 +684,51 @@
 }
 .modal-body {
   padding: 14px 16px 16px;
+}
+
+/* ---------- 下拉菜单（复制菜单 / 发送到菜单等） ---------- */
+.menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.menu-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 90;
+  min-width: 168px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--ink-1);
+  white-space: nowrap;
+}
+.menu-item:hover {
+  background: var(--paper-hover);
+  text-decoration: none;
+}
+.menu-item .icon {
+  width: 15px;
+  height: 15px;
+  color: var(--ink-3);
+}
+.menu-sep {
+  border-top: 1px solid var(--line);
+  margin: 4px 6px;
 }
 
 /* ---------- toast ---------- */
@@ -653,7 +766,22 @@
   padding: 30px 20px;
   text-align: center;
   color: var(--ink-2);
-  background: color-mix(in srgb, var(--paper-sunken) 45%, transparent);
+  background:
+    radial-gradient(circle, var(--dot) 1.1px, transparent 1.1px) 0 0 / var(--dot-size) var(--dot-size),
+    color-mix(in srgb, var(--paper-sunken) 45%, transparent);
+}
+.empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+  margin-bottom: 10px;
+  box-shadow: var(--shadow-sm);
 }
 .empty-title {
   font-weight: 650;
@@ -669,30 +797,37 @@
   flex-wrap: wrap;
 }
 
-/* ---------- 标签页 ---------- */
+/* ---------- 标签页（分段控件式） ---------- */
 .tabs {
-  display: flex;
+  display: inline-flex;
   gap: 2px;
   flex-wrap: wrap;
-  border-bottom: 1px solid var(--line);
+  border: 1px solid var(--line);
+  background: var(--paper-sunken);
+  border-radius: 10px;
+  padding: 3px;
   margin-bottom: 14px;
+  max-width: 100%;
 }
 .tab {
-  padding: 7px 13px;
+  padding: 6px 13px;
   font-size: 13.5px;
   color: var(--ink-2);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  border-radius: 6px 6px 0 0;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .tab:hover {
   color: var(--ink-1);
-  background: var(--paper-hover);
 }
 .tab.active {
   color: var(--accent-ink);
   font-weight: 650;
-  border-bottom-color: var(--accent);
+  background: var(--paper-raised);
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ---------- 保存状态点 ---------- */
@@ -795,6 +930,19 @@
   position: relative;
   max-width: 420px;
   width: 100%;
+}
+.search-input .icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+.search-input .input {
+  padding-left: 32px;
 }
 
 /* ---------- 顶栏内控件 ---------- */

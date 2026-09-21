@@ -128,4 +128,6 @@ export interface ParsedTable {
   rawRows: Record<string, string>[];
   /** 有效数据行数 */
   n: number;
+  /** 非空但无法解析为数值的输入单元格数（排除行不计） */
+  invalidCells: number;
 }

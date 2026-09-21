@@ -1,5 +1,6 @@
-/** 移动端底部主导航（≤900px 显示，与桌面侧栏共用 nav-config） */
+/** 移动端底部主导航（≤900px 显示，与桌面侧栏共用 nav-config）：图标 + 文字标签 */
 import { NavLink } from 'react-router-dom';
+import { Icon } from '../../components/Icon';
 import { MarkdownInline } from '../../components/Markdown';
 import { MOBILE_NAV_ITEMS } from './nav-config';
 
@@ -13,6 +14,7 @@ export function MobileNav() {
           end={item.end}
           className={({ isActive }) => `m-item${isActive ? ' active' : ''}`}
         >
+          <Icon name={item.icon} />
           <MarkdownInline allowLinks={false}>{item.mobileLabel}</MarkdownInline>
         </NavLink>
       ))}

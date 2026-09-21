@@ -11,6 +11,7 @@ import { MarkdownInline, MarkdownList } from './Markdown';
 
 export function ResultInspector({ results, profileName }: { results: ResultItem[]; profileName?: string }) {
   const showProvenance = useSettings((s) => s.showProvenance);
+  const expertMode = useSettings((s) => s.expertMode);
   if (results.length === 0) {
     return (
       <div className="empty-state">
@@ -21,14 +22,14 @@ export function ResultInspector({ results, profileName }: { results: ResultItem[
   return (
     <div>
       {results.map((r) => (
-        <ResultCard key={r.id} item={r} profileName={profileName} showProvenance={showProvenance} />
+        <ResultCard key={r.id} item={r} profileName={profileName} showProvenance={showProvenance} expert={expertMode} />
       ))}
     </div>
   );
 }
 
-export function ResultCard({ item, profileName, showProvenance = true }: {
-  item: ResultItem; profileName?: string; showProvenance?: boolean;
+export function ResultCard({ item, profileName, showProvenance = true, expert = false }: {
+  item: ResultItem; profileName?: string; showProvenance?: boolean; expert?: boolean;
 }) {
   return (
     <div className="result-card">
@@ -37,6 +38,7 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
           {item.symbol ? <Tex tex={`${item.symbol} = `} /> : null}
           <MarkdownInline>{item.title}</MarkdownInline>
         </span>
+        {expert && <span className="faint xs mono">{item.id}</span>}
         <span className="spacer" />
         {item.warnings && item.warnings.length > 0 && (
           <span className="badge badge-warning" title={item.warnings.join('\n')}>
@@ -59,7 +61,7 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
           </div>
         )}
         {item.ruleNotes && item.ruleNotes.length > 0 && (
-          <Section label={`当前标准规则${profileName ? `（${profileName}）` : ''}`}>
+          <Section label={`当前标准规则${profileName ? `（${profileName}）` : ''}`} defaultOpen={expert}>
             <MarkdownList items={item.ruleNotes} />
           </Section>
         )}
@@ -78,17 +80,17 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
           </Section>
         )}
         {item.components && item.components.length > 0 && (
-          <Section label="不确定度分量">
+          <Section label="不确定度分量" defaultOpen={expert}>
             <ContributionChart components={item.components} />
           </Section>
         )}
         {item.roundingNote && (
-          <Section label="修约依据">
+          <Section label="修约依据" defaultOpen={expert}>
             <div className="small"><MarkdownInline>{item.roundingNote}</MarkdownInline></div>
           </Section>
         )}
         {showProvenance && item.provenance && (
-          <Section label="来源">
+          <Section label="来源" defaultOpen={expert}>
             <div className="row">
               <SourceBadge provenance={item.provenance} />
               {item.provenance.document && <span className="small muted"><MarkdownInline>{item.provenance.document}</MarkdownInline></span>}
@@ -97,7 +99,7 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
           </Section>
         )}
         {item.warnings && item.warnings.length > 0 && (
-          <Section label="诊断提示">
+          <Section label="诊断提示" defaultOpen={expert}>
             <MarkdownList items={item.warnings} className="warning-list" />
           </Section>
         )}

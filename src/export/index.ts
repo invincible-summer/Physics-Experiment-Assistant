@@ -7,6 +7,18 @@ import { ExperimentDefinition, ExperimentComputation, DatasetDefinition, Compute
 import { parseTable } from '../experiments/engine';
 import { StandardProfile } from '../standards/types';
 import { ResultItem } from '../core/results';
+import { useSettings } from '../stores/settings';
+
+/** LaTeX 单位包裹：`\mathrm{}`（默认）或 `\text{}`，由设置 latexUnitStyle 决定 */
+function unitTex(unit: string, latexUnitStyle: boolean): string {
+  const escaped = unit.replace(/%/g, '\\%');
+  return latexUnitStyle ? `\\,\\mathrm{${escaped}}` : `\\,\\text{${escaped}}`;
+}
+
+/** 未显式传参时读取当前全局设置（调用方无法改签名时的最小侵入接线） */
+function resolveLatexUnitStyle(explicit?: boolean): boolean {
+  return explicit ?? useSettings.getState().latexUnitStyle;
+}
 
 /** CSV 转义 */
 export function toCSV(rows: string[][]): string {
@@ -64,13 +76,11 @@ export function tableToMarkdown(dataset: DatasetDefinition, project: StoredProje
 }
 
 /** 结果项 → Markdown（公式 → 代入 → 未修约 → 最终表达） */
-export function resultToMarkdown(item: ResultItem, mathStyle: 'dollar' | 'parens'): string {
-  const block = (tex: string) => (mathStyle === 'dollar' ? `$$${tex}$$` : `\\[${tex}\\]`);
-  const inline = (tex: string) => (mathStyle === 'dollar' ? `$${tex}$` : `\\(${tex}\\)`);
+export function resultToMarkdown(item: ResultItem, mathStyle: 'dollar' | 'parens', latexUnitStyle?: boolean): string {  const block = (tex: string) => (mathStyle === 'dollar' ? `$$${tex}$$` : `\\[${tex}\\]`);
   const lines: string[] = [`**${item.title}**`];
   if (item.finalText) {
-    const unitTex = item.unit ? `\\,\\mathrm{${item.unit.replace('%', '\\%')}}` : '';
-    lines.push('', `最终结果：${block(`${item.symbol ?? ''}${item.symbol ? ' = ' : ''}${texSafe(item.finalText)}${unitTex}`)}${item.relativeText ? `（相对不确定度 ${item.relativeText}）` : ''}`);
+    const uTex = item.unit ? unitTex(item.unit, resolveLatexUnitStyle(latexUnitStyle)) : '';
+    lines.push('', `最终结果：${block(`${item.symbol ?? ''}${item.symbol ? ' = ' : ''}${texSafe(item.finalText)}${uTex}`)}${item.relativeText ? `（相对不确定度 ${item.relativeText}）` : ''}`);
   }
   for (const s of item.steps) {
     if (s.formulaLatex) lines.push('', block(s.formulaLatex));
@@ -92,12 +102,12 @@ export function resultToMarkdown(item: ResultItem, mathStyle: 'dollar' | 'parens
   return lines.join('\n');
 }
 
-function texSafe(s: string): string {
+export function texSafe(s: string): string {
   // ± 在 KaTeX 可用 \\pm
   return s.replace(/±/g, '\\pm ').replace(/°/g, '^\\circ ');
 }
 
-function stripTex(s: string): string {
+export function stripTex(s: string): string {
   return s.replace(/\\/g, '').replace(/[{}]/g, '');
 }
 
@@ -111,6 +121,7 @@ export function buildDataProcessingMarkdown(
   computation: ExperimentComputation,
   profile: StandardProfile,
   mathStyle: 'dollar' | 'parens' = 'dollar',
+  latexUnitStyle?: boolean,
 ): string {
   const m = (tex: string) => (mathStyle === 'dollar' ? `$$${tex}$$` : `\\[${tex}\\]`);
   const lines: string[] = [];
@@ -157,7 +168,7 @@ export function buildDataProcessingMarkdown(
   // 结果
   lines.push('', '#### 计算结果');
   for (const item of computation.results) {
-    lines.push('', resultToMarkdown(item, mathStyle), '---');
+    lines.push('', resultToMarkdown(item, mathStyle, latexUnitStyle), '---');
   }
 
   // 诊断（客观）
@@ -171,11 +182,12 @@ export function buildDataProcessingMarkdown(
 }
 
 /** 当前结果 LaTeX（最终表达） */
-export function buildResultLatex(computation: ExperimentComputation): string {
+export function buildResultLatex(computation: ExperimentComputation, latexUnitStyle?: boolean): string {
+  const style = resolveLatexUnitStyle(latexUnitStyle);
   const lines: string[] = ['% 数据处理结果（物理实验小助手生成）'];
   for (const item of computation.results) {
     if (!item.finalText) continue;
-    const unit = item.unit ? `\\,\\mathrm{${item.unit.replace('%', '\\%')}}` : '';
+    const unit = item.unit ? unitTex(item.unit, style) : '';
     const sym = item.symbol ? item.symbol.replace(/\\/g, '') : '\\text{result}';
     lines.push(`% ${item.title}`);
     lines.push(`${sym} = ${texSafe(item.finalText)}${unit}`);
@@ -184,3 +196,37 @@ export function buildResultLatex(computation: ExperimentComputation): string {
 }
 
 export { serializeProject };
+
+/**
+ * 公式计算完整过程 Markdown（AGENTS §12：公式 → 数值代入 → 未修约值 → 修约依据 → 最终表达）。
+ * 供公式详情页「复制/下载 .md」使用。
+ */
+export function buildFormulaProcessMarkdown(
+  formula: { title: string; latex: string; conditions?: string; variables: { name: string; label: string; unit: string }[]; provenance?: { status: string; document?: string; section?: string } },
+  item: ResultItem,
+  opts: { profileName: string; mathStyle: 'dollar' | 'parens'; latexUnitStyle?: boolean },
+): string {
+  const block = (tex: string) => (opts.mathStyle === 'dollar' ? `$$${tex}$$` : `\\[${tex}\\]`);
+  const lines: string[] = [];
+  lines.push(`## 公式计算：${formula.title}`, '');
+  lines.push(block(formula.latex), '');
+  lines.push('| 变量 | 含义 | 单位 |', '|---|---|---|');
+  for (const v of formula.variables) {
+    lines.push(`| \`${v.name}\` | ${v.label} | ${v.unit || '—'} |`);
+  }
+  if (formula.conditions) lines.push('', `适用条件：${formula.conditions}`);
+  lines.push('', '### 计算过程', '', resultToMarkdown(item, opts.mathStyle, opts.latexUnitStyle));
+  lines.push('', '---', '', `> 由物理实验小助手生成；标准：${opts.profileName}；时间：${new Date().toISOString()}`);
+  return lines.join('\n');
+}
+
+/** 触发浏览器下载文本文件（Markdown / LaTeX / CSV / JSON） */
+export function downloadTextFile(filename: string, text: string, mime = 'text/markdown'): void {
+  const blob = new Blob([text], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.replace(/[\\/:*?"<>|]/g, '_');
+  a.click();
+  URL.revokeObjectURL(url);
+}
