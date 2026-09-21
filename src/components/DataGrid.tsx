@@ -1,19 +1,14 @@
 /**
- * EditableDataGrid — 数据表格组件（plan.md §4.3，AGENTS.md §12）。
- *
- * - 粘贴 TSV/CSV（多单元格）；
- * - Enter 下移、Tab 右移、方向键导航；
- * - 增删行、撤销/重做；
- * - 派生量列只读（悬停显示公式）；
- * - 缺失值显示 —，绝不自动填 0；
- * - 异常格式标红但不篡改数据；
- * - 行排除（记录审计），复制为 Markdown 表格。
+ * DataGrid — 实验数据表格（AGENTS.md §12）。
+ * 粘贴 TSV/CSV（多单元格）；Enter/Tab/方向键导航；增删行、撤销/重做；
+ * 派生列只读；缺失值显示 —（绝不自动填 0）；异常格式标红不篡改数据；
+ * 行排除（记录审计）；复制为 Markdown 表格。所有按钮为可读文字。
  */
-import { ClipboardEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ClipboardEvent, KeyboardEvent, useMemo, useRef, useState } from 'react';
 import { parseNumericText } from '../core/numeric';
 import { compileExpression, evaluateExpression } from '../core/expression';
 import { Tex } from './katex';
-import { toast } from './ui';
+import { Button, toast } from './ui';
 import { MarkdownInline } from './Markdown';
 
 export interface GridColumn {
@@ -52,10 +47,8 @@ export function DataGrid({
 }: DataGridProps) {
   const undoStack = useRef<HistoryState[]>([]);
   const redoStack = useRef<HistoryState[]>([]);
-  const [focused, setFocused] = useState<{ r: number; c: number } | null>(null);
+  const [focused, setFocused] = useState(false);
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
-
-  const inputCols = columns.filter((c) => c.kind === 'input').length;
 
   const pushHistory = (newRows: string[][]) => {
     undoStack.current.push({ rows });
@@ -103,7 +96,7 @@ export function DataGrid({
     pushHistory(next);
   };
 
-  /** 派生列求值（含行内变量） */
+  /** 派生列求值（含行内变量，按列序、无环） */
   const derivedValues = useMemo(() => {
     const compiledCache = new Map<string, ReturnType<typeof compileExpression> | null>();
     const result: (number | null)[][] = rows.map(() => columns.map(() => null));
@@ -130,7 +123,6 @@ export function DataGrid({
           if (!p.ok) { ok = false; return; }
           scope[c2.id] = p.value;
         });
-        // 行内派生列依赖其他派生列：按列序求值（定义须无环）
         columns.forEach((c2, j) => {
           if (c2.kind !== 'derived' || j >= c) return;
           const v = result[r][j];
@@ -160,7 +152,7 @@ export function DataGrid({
     matrix.forEach((pastedRow, di) => {
       pastedRow.forEach((val, dj) => {
         const col = columns[c0 + dj];
-        if (!col || col.kind === 'derived') return; // 溢出到派生列时忽略
+        if (!col || col.kind === 'derived') return;
         next[r0 + di][c0 + dj] = val.trim();
       });
     });
@@ -173,8 +165,7 @@ export function DataGrid({
       e.preventDefault();
       const nr = Math.max(0, Math.min(rows.length - 1, r + dr));
       const ncIdx = Math.max(0, Math.min(columns.length - 1, c + dc));
-      const key = `${nr}-${ncIdx}`;
-      const el = inputRefs.current.get(key);
+      const el = inputRefs.current.get(`${nr}-${ncIdx}`);
       if (el) { el.focus(); el.select(); }
     };
     if (e.key === 'Enter') { move(e.shiftKey ? -1 : 1, 0); }
@@ -204,30 +195,30 @@ export function DataGrid({
 
   return (
     <div>
-      {title && <div className="panel-title"><MarkdownInline>{title}</MarkdownInline></div>}
-      {hint && <div className="panel-sub" style={{ marginBottom: 6 }}><MarkdownInline>{hint}</MarkdownInline></div>}
-      <div className="row" style={{ marginBottom: 8 }}>
-        <button className="btn btn-sm" onClick={() => addRow()}><MarkdownInline allowLinks={false}>添加一行</MarkdownInline></button>
-        <button className="btn btn-sm" onClick={() => {
+      {title && <div className="panel-title" style={{ marginBottom: 2 }}><MarkdownInline>{title}</MarkdownInline></div>}
+      {hint && <div className="panel-sub" style={{ marginBottom: 8 }}><MarkdownInline>{hint}</MarkdownInline></div>}
+      <div className="grid-toolbar">
+        <Button size="sm" onClick={() => addRow()}>添加一行</Button>
+        <Button size="sm" onClick={() => {
           const next = rows.map((r) => [...r]);
           while (next.length < defaultRows) next.push(columns.map(() => ''));
           if (next.length !== rows.length) pushHistory(next);
-        }}><MarkdownInline allowLinks={false}>{`补足 ${defaultRows} 行`}</MarkdownInline></button>
-        <button className="btn btn-sm" onClick={undo} disabled={undoStack.current.length === 0}><MarkdownInline allowLinks={false}>撤销</MarkdownInline></button>
-        <button className="btn btn-sm" onClick={redo} disabled={redoStack.current.length === 0}><MarkdownInline allowLinks={false}>重做</MarkdownInline></button>
-        <span className="spacer" style={{ flex: 1 }} />
-        <button
-          className="btn btn-sm"
+        }}>{`补足 ${defaultRows} 行`}</Button>
+        <Button size="sm" variant="ghost" onClick={undo} disabled={undoStack.current.length === 0}>撤销</Button>
+        <Button size="sm" variant="ghost" onClick={redo} disabled={redoStack.current.length === 0}>重做</Button>
+        <span className="spacer" />
+        <Button
+          size="sm"
           onClick={async () => {
             try { await navigator.clipboard.writeText(markdownTable()); toast('已复制 Markdown 表格'); } catch { /* noop */ }
           }}
-        ><MarkdownInline allowLinks={false}>复制为 Markdown</MarkdownInline></button>
+        >复制为 Markdown</Button>
       </div>
       <div className="grid-wrap">
         <table className="data-grid">
           <thead>
             <tr>
-              <th style={{ width: 44 }}>#</th>
+              <th style={{ width: 40 }}>#</th>
               {columns.map((c) => (
                 <th key={c.id}>
                   <MarkdownInline>{c.header}</MarkdownInline>
@@ -237,13 +228,14 @@ export function DataGrid({
                   )}
                 </th>
               ))}
-              <th style={{ width: 118 }}><MarkdownInline>操作</MarkdownInline></th>
+              <th style={{ width: 116 }}><MarkdownInline>操作</MarkdownInline></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
               <tr key={r}>
-                <td className={`row-idx${excludedRows.includes(r) ? ' row-excluded' : ''}`}
+                <td
+                  className={`row-idx${excludedRows.includes(r) ? ' row-excluded' : ''}`}
                   onClick={() => onToggleExclude?.(r)}
                   title={onToggleExclude ? '点击排除/恢复该行（记录审计）' : undefined}
                 >{r + 1}</td>
@@ -268,7 +260,7 @@ export function DataGrid({
                         value={row[j] ?? ''}
                         placeholder="—"
                         inputMode="decimal"
-                        onFocus={() => setFocused({ r, c: j })}
+                        onFocus={() => setFocused(true)}
                         onChange={(e) => setCell(r, j, e.target.value)}
                         onBlur={(e) => { if (e.target.value !== (rows[r]?.[j] ?? '')) setCellHistory(r, j, e.target.value); }}
                         onPaste={(e) => onPaste(e, r, j)}
@@ -279,8 +271,8 @@ export function DataGrid({
                   );
                 })}
                 <td className="grid-actions">
-                  <button className="btn btn-sm btn-ghost" onClick={() => addRow(r)}><MarkdownInline allowLinks={false}>插入</MarkdownInline></button>
-                  <button className="btn btn-sm btn-ghost btn-danger" onClick={() => removeRow(r)}><MarkdownInline allowLinks={false}>删除</MarkdownInline></button>
+                  <Button size="sm" variant="ghost" onClick={() => addRow(r)}>插入</Button>
+                  <Button size="sm" variant="ghost" onClick={() => removeRow(r)}>删除</Button>
                 </td>
               </tr>
             ))}
@@ -288,8 +280,8 @@ export function DataGrid({
         </table>
       </div>
       {focused && (
-        <div className="small muted" style={{ marginTop: 4 }}>
-          <MarkdownInline>Enter/Tab/方向键导航 · Ctrl+Z 撤销 · 可从 Excel 粘贴 TSV · 空缺显示 —，不会自动填 0</MarkdownInline>
+        <div className="small muted grid-footnote">
+          <MarkdownInline>Enter/Tab/方向键导航 · Ctrl+Z 撤销 · 可从 Excel 粘贴 TSV · 空缺显示 —，不会自动填 0 · 点击行号排除/恢复该行</MarkdownInline>
         </div>
       )}
     </div>
@@ -299,7 +291,6 @@ export function DataGrid({
 function fmtDerived(v: number, decimals?: number): string {
   if (!Number.isFinite(v)) return '—';
   if (decimals !== undefined) return v.toFixed(decimals);
-  // 默认 6 位有效数字，不提前修约原则——显示用
   if (v === 0) return '0';
   const a = Math.abs(v);
   if (a >= 1e7 || a < 1e-5) return v.toExponential(4);

@@ -2,15 +2,16 @@
 import { useMemo, useState } from 'react';
 import { ColumnInput } from './tool-inputs';
 import {
-  mean, median, sampleStd, stdErrorOfMean, minOf, maxOf, rangeOf, halfRange, covariance, correlation,
+  mean, median, sampleStd, stdErrorOfMean, minOf, maxOf, rangeOf, halfRange,
 } from '../../core/statistics';
 import { courseDirect, gbtDirect } from '../../core/uncertainty';
 import { useSettings } from '../../stores/settings';
 import { ResultCard } from '../../components/ResultInspector';
 import { makeResult } from '../../core/results';
-import { Panel } from '../../components/ui';
+import { EmptyState, Notice, Panel } from '../../components/ui';
+import { QuantityInput } from '../../components/QuantityInput';
 import { formatSigDigitsPercent } from '../../core/sigfig';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 
 export function StatisticsPage() {
   const profile = useSettings((s) => s.activeProfile());
@@ -78,25 +79,47 @@ export function StatisticsPage() {
   }, [uncertaintyResult, profile]);
 
   return (
-    <main className="page">
-      <h1><MarkdownInline>快速统计</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`粘贴一列数据，得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownInline></p>
+    <div className="stack-lg">
+      <header className="page-head">
+        <h1 className="page-title"><MarkdownInline>快速统计</MarkdownInline></h1>
+        <p className="page-lead">
+          <MarkdownInline>{`粘贴一列数据，得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownInline>
+        </p>
+      </header>
       <div className="tool-layout">
+        <Panel title="数据输入" sub="测量列与不确定度输入参数">
+          <div className="stack">
+            <ColumnInput label="测量列" placeholder="每行一个数值" onChange={setValues} />
+            <QuantityInput
+              label={profile.kind === 'gbt' ? 'B 类半宽 $a$（默认矩形分布）' : '仪器误差限 $\\Delta_{仪}$'}
+              value={instrumentError}
+              onChange={setInstrumentError}
+              placeholder="如 0.02"
+              hint={profile.kind === 'gbt'
+                ? '矩形分布半宽 $a$，如 0.02，单位与数据相同；按 $u_B=a/\\sqrt{3}$ 换算'
+                : '$\\Delta_{仪}$，如 0.02，单位与数据相同'}
+            />
+            <QuantityInput
+              label="已定系统误差修正值（可选）"
+              value={correction}
+              onChange={setCorrection}
+              placeholder="如 -0.01"
+              hint={'可为空；已定系统误差先修正再报告：$\\bar{x}_{\\text{修正}}=\\bar{x}+c$'}
+            />
+          </div>
+        </Panel>
         <div className="stack">
-          <Panel title="数据">
-            <ColumnInput label="测量列" onChange={setValues} />
-          </Panel>
-          <Panel title="统计结果">
+          <Panel title="统计量">
             {!stats ? (
-              <div className="empty-state"><div><MarkdownInline>等待数据输入</MarkdownInline></div></div>
+              <EmptyState title="等待数据输入" hint="在左侧粘贴测量列后自动计算" />
             ) : (
-              <table className="contrib-table">
+              <table className="stat-table">
                 <tbody>
-                  <StatRow label="n" value={stats.n} />
-                  <StatRow label="平均值 x̄" value={stats.mean} />
+                  <StatRow label="$n$" value={stats.n} />
+                  <StatRow label={'平均值 $\\bar{x}$'} value={stats.mean} />
                   <StatRow label="中位数（通用扩展）" value={stats.median} />
-                  <StatRow label="样本标准偏差 S（贝塞尔）" value={stats.sampleStd} />
-                  <StatRow label="平均值标准偏差 S_x̄" value={stats.sem} />
+                  <StatRow label="样本标准偏差 $S$（贝塞尔）" value={stats.sampleStd} />
+                  <StatRow label={'平均值标准偏差 $S_{\\bar{x}}$'} value={stats.sem} />
                   <StatRow label="最小值" value={stats.min} />
                   <StatRow label="最大值" value={stats.max} />
                   <StatRow label="极差" value={stats.range} />
@@ -105,35 +128,23 @@ export function StatisticsPage() {
               </table>
             )}
           </Panel>
-        </div>
-        <div className="stack">
           <Panel title={`不确定度（${profileName}）`}>
-            <div className="form-grid">
-              <div>
-                <div className="field-label"><MarkdownInline>{`仪器误差限 ${profile.kind === 'gbt' ? '（B 类半宽 a，默认矩形分布）' : 'Δ仪'}`}</MarkdownInline></div>
-                <input className="input" value={instrumentError} inputMode="decimal" placeholder="如 0.02" onChange={(e) => setInstrumentError(e.target.value)} />
-              </div>
-              <div>
-                <div className="field-label"><MarkdownInline>已定系统误差修正值（可选）</MarkdownInline></div>
-                <input className="input" value={correction} inputMode="decimal" placeholder="如 -0.01" onChange={(e) => setCorrection(e.target.value)} />
-              </div>
-            </div>
             {uncertaintyResult && 'error' in uncertaintyResult ? (
-              <div className="notice notice-danger"><div className="n-body"><MarkdownInline>{uncertaintyResult.error}</MarkdownInline></div></div>
+              <Notice variant="danger"><MarkdownInline>{uncertaintyResult.error}</MarkdownInline></Notice>
             ) : resultItem ? (
               <ResultCard item={resultItem} profileName={profileName} />
             ) : (
-              <div className="field-help" style={{ marginTop: 8 }}><MarkdownInline>填写仪器误差限后计算</MarkdownInline></div>
+              <EmptyState title="等待仪器误差限" hint="填写左侧仪器误差限后计算" />
             )}
           </Panel>
           {profile.kind === 'gbt' && (
-            <div className="notice notice-info">
-              <div className="n-body"><MarkdownInline>GB/T 模式：A 类不加 `t` 因子；B 类默认按矩形分布换算 `a/√3`。如需三角/正态分布请用公式工作台的 GB/T 公式族。</MarkdownInline></div>
-            </div>
+            <Notice variant="info">
+              <MarkdownBlock>{'GB/T 模式：A 类不加 $t$ 因子；B 类默认按矩形分布换算 $u_B=a/\\sqrt{3}$。如需三角/正态分布请用公式工作台的 GB/T 公式族。'}</MarkdownBlock>
+            </Notice>
           )}
         </div>
       </div>
-    </main>
+    </div>
   );
 }
 

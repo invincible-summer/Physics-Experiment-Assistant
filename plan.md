@@ -329,6 +329,18 @@ MVP 判定（§22）各条目状态：
 
 实现备注：golden test 中环体积等资料示例的输入数据集为"与资料最终答案对齐的重构数据"（源 PDF 未随仓库提供），已在测试注释中标注；公式 provenance 按 §8.4 的资料分类标注，湿空气声速等推导式标 `source-derived`。
 
+## 0.6 前端重设计（v2，2026-09-21）
+
+UI 层整体重写（逻辑层 `src/core|formulas|experiments|standards|instruments|persistence|export` 零改动）：
+
+- 「学术墨韵」设计系统：暖纸/墨色/青碧令牌 + 完整暗色主题，集中在 `src/app/styles/`（tokens/base/components/layout/markdown/print 六份）。
+- **主题 bug 修复**：`theme` 扩为 `system|light|dark`（默认跟随系统），`index.html` 预渲染脚本改读 `pea.settings`，`App.tsx` 同步 `data-theme` 并监听系统变化；e2e 有覆盖。
+- 边栏构图重构：`app/shell/` 下 nav-config（单一声明式导航源）→ NavItem/SideNav/TopBar/MobileNav/StepNav → AppShell 纯组合，折叠态为可读缩写文字。
+- 全部可见文案（含 notice/徽标/toast/空状态/表格文字）统一走 Markdown 渲染层并支持 KaTeX 数学片段；修复 JSX 双引号属性不处理 `\\` 转义导致的数学片段失真（LaTeX 串必须用 `{ '...' }` 表达式传入）。
+- 组件层重写：Button/Badge/Panel/Notice/Modal/Tabs/Field 等原语 + DataGrid/PhysicsPlot/ResultInspector/FormulaCalculator 等领域组件（导出契约不变）；PhysicsPlot 主题感知配色并真正消费 `plotWhiteBackground`/`defaultPlotFormat` 设置。
+- 15 条路由页面全部重写；`EmptyState` 移除从未渲染的 icon prop；`PhysicsPlot` 移除未接线的 `onBrush`。
+- e2e 冒烟按新 UI 重写（6 用例全过）；127 单元测试全过（含保留的 markdown-ui 测试）；typecheck/build 全绿。
+
 ---
 
 # 1. 资料阅读结论与产品边界

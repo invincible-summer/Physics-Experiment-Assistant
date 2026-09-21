@@ -1,12 +1,37 @@
-/** 通用 UI 组件：徽章、面板、来源、安全提示、复制按钮、对话框等 */
-import { ReactNode, useEffect, useRef, useState } from 'react';
+/**
+ * 基础 UI 原语 —— 按钮、徽章、面板、提示、对话框、toast 等。
+ * 约定（AGENTS.md §12）：所有可见文案必须是 Markdown 源字符串，
+ * 经 MarkdownInline/markdownInlineNode 渲染；交互控件内 allowLinks={false}。
+ */
+import { ButtonHTMLAttributes, ReactNode, useEffect, useRef, useState } from 'react';
 import { Provenance, PROVENANCE_LABELS } from '../standards/types';
 import { Tex } from './katex';
 import { MarkdownInline, MarkdownList, markdownInlineNode } from './Markdown';
 
+/* ---------- 按钮 ---------- */
+export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
+
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: ButtonVariant;
+  size?: 'md' | 'sm';
+}
+
+export function Button({ variant = 'default', size = 'md', className = '', type = 'button', children, ...rest }: ButtonProps) {
+  const cls = ['btn', variant !== 'default' && `btn-${variant}`, size === 'sm' && 'btn-sm', className]
+    .filter(Boolean).join(' ');
+  return (
+    <button type={type} className={cls} {...rest}>
+      {markdownInlineNode(children, false)}
+    </button>
+  );
+}
+
+/* ---------- 徽章 ---------- */
 export type BadgeVariant = 'default' | 'accent' | 'success' | 'warning' | 'danger' | 'info';
 
-export function Badge({ variant = 'default', children, title }: { variant?: BadgeVariant; children: ReactNode; title?: string }) {
+export function Badge({ variant = 'default', children, title }: {
+  variant?: BadgeVariant; children: ReactNode; title?: string;
+}) {
   return <span className={`badge badge-${variant}`} title={title}>{markdownInlineNode(children)}</span>;
 }
 
@@ -23,29 +48,48 @@ export function SourceBadge({ provenance }: { provenance: Provenance }) {
     provenance.note,
   ].filter(Boolean).join(' · ');
   return (
-    <span className={`badge badge-source ${provenance.status} badge-${variant}`} title={title}>
-      <MarkdownInline>{PROVENANCE_LABELS[provenance.status]}</MarkdownInline>
+    <span className={`badge badge-${variant}`} title={title}>
+      <MarkdownInline allowLinks={false}>{PROVENANCE_LABELS[provenance.status]}</MarkdownInline>
     </span>
   );
 }
 
-export function Panel({ title, sub, actions, children, id }: {
-  title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string;
+/* ---------- 面板 ---------- */
+export function Panel({ title, sub, actions, children, id, className = '' }: {
+  title?: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode; id?: string; className?: string;
 }) {
   return (
-    <section className="panel" id={id}>
-      {(title || actions) && (
-        <div className="panel-title">
+    <section className={`panel${className ? ` ${className}` : ''}`} id={id}>
+      {(title || sub || actions) && (
+        <div className="panel-head">
           <div className="panel-heading">
-            <span>{markdownInlineNode(title)}</span>
-            {sub && <span className="panel-sub">{markdownInlineNode(sub)}</span>}
+            {title && <div className="panel-title">{markdownInlineNode(title)}</div>}
+            {sub && <div className="panel-sub">{markdownInlineNode(sub)}</div>}
           </div>
-          <span className="spacer" />
           {actions && <div className="panel-actions">{actions}</div>}
         </div>
       )}
-      {children}
+      <div className="panel-body">{children}</div>
     </section>
+  );
+}
+
+/* ---------- 提示 / 公告（全部走 Markdown 渲染，支持公式） ---------- */
+export type NoticeVariant = 'info' | 'success' | 'warning' | 'danger';
+
+export function Notice({ variant = 'info', title, children, className = '' }: {
+  variant?: NoticeVariant; title?: string; children: ReactNode; className?: string;
+}) {
+  return (
+    <div
+      className={`notice notice-${variant}${className ? ` ${className}` : ''}`}
+      role={variant === 'warning' || variant === 'danger' ? 'alert' : undefined}
+    >
+      <div className="n-body">
+        {title && <div className="n-title"><MarkdownInline>{title}</MarkdownInline></div>}
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -53,29 +97,29 @@ export function SafetyNotice({ items, compact = false }: { items: string[]; comp
   if (items.length === 0) return null;
   if (compact) {
     return (
-      <div className="notice notice-warning" role="alert">
-        <div className="n-body">
-          <div className="n-title"><MarkdownInline>安全提示</MarkdownInline></div>
-          <MarkdownList items={items} />
-        </div>
-      </div>
+      <Notice variant="warning" title="安全提示">
+        <MarkdownList items={items} />
+      </Notice>
     );
   }
   return (
     <div className="safety-banner" role="alert">
-      <div>
-        <strong><MarkdownInline>安全须知（请先阅读，操作以教师现场要求为准）</MarkdownInline></strong>
+      <div className="safety-banner-inner">
+        <div className="n-title"><MarkdownInline>安全须知（请先阅读，操作以教师现场要求为准）</MarkdownInline></div>
         <MarkdownList items={items} />
       </div>
     </div>
   );
 }
 
-export function CopyButton({ text, label = '复制', onCopied }: { text: string | (() => string); label?: string; onCopied?: () => void }) {
+/* ---------- 复制按钮 ---------- */
+export function CopyButton({ text, label = '复制', onCopied, size = 'sm' }: {
+  text: string | (() => string); label?: string; onCopied?: () => void; size?: 'md' | 'sm';
+}) {
   const [done, setDone] = useState(false);
   return (
-    <button
-      className="btn btn-sm"
+    <Button
+      size={size}
       onClick={async () => {
         const content = typeof text === 'function' ? text() : text;
         try {
@@ -93,11 +137,12 @@ export function CopyButton({ text, label = '复制', onCopied }: { text: string 
         setTimeout(() => setDone(false), 1400);
       }}
     >
-      <MarkdownInline allowLinks={false}>{done ? '已复制' : label}</MarkdownInline>
-    </button>
+      {done ? '已复制' : label}
+    </Button>
   );
 }
 
+/* ---------- 对话框 ---------- */
 export function Modal({ open, onClose, title, children, wide }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean;
 }) {
@@ -111,14 +156,11 @@ export function Modal({ open, onClose, title, children, wide }: {
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div
-      className="modal-backdrop"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className={`modal-card${wide ? ' modal-wide' : ''}`}>
+    <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={`modal-card${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
-          <span><MarkdownInline>{title}</MarkdownInline></span>
-          <button className="btn btn-sm btn-ghost" onClick={onClose}><MarkdownInline allowLinks={false}>关闭</MarkdownInline></button>
+          <span className="modal-title"><MarkdownInline>{title}</MarkdownInline></span>
+          <Button size="sm" variant="ghost" onClick={onClose}>关闭</Button>
         </div>
         <div className="modal-body">{children}</div>
       </div>
@@ -126,25 +168,65 @@ export function Modal({ open, onClose, title, children, wide }: {
   );
 }
 
-export function EmptyState({ title, hint }: { icon?: string; title: string; hint?: string }) {
+/* ---------- 空状态 ---------- */
+export function EmptyState({ title, hint, children }: { title: string; hint?: string; children?: ReactNode }) {
   return (
     <div className="empty-state">
       <div className="empty-title"><MarkdownInline>{title}</MarkdownInline></div>
-      {hint && <div className="small"><MarkdownInline>{hint}</MarkdownInline></div>}
+      {hint && <div className="small muted"><MarkdownInline>{hint}</MarkdownInline></div>}
+      {children && <div className="empty-actions">{children}</div>}
     </div>
   );
 }
 
-/** 公式 LaTeX 显示块 */
+/* ---------- 公式块 ---------- */
 export function FormulaBlock({ latex, display = true }: { latex: string; display?: boolean }) {
   return (
-    <div className="formula-card">
-      <div className="fc-latex"><Tex tex={latex} display={display} /></div>
+    <div className="formula-block">
+      <Tex tex={latex} display={display} />
     </div>
   );
 }
 
-/** toast 通知（轻量本地实现） */
+/* ---------- 标签页 ---------- */
+export function Tabs({ tabs, active, onChange, ariaLabel }: {
+  tabs: { id: string; label: string }[];
+  active: string;
+  onChange: (id: string) => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <div className="tabs" role="tablist" aria-label={ariaLabel}>
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          role="tab"
+          aria-selected={t.id === active}
+          className={`tab${t.id === active ? ' active' : ''}`}
+          onClick={() => onChange(t.id)}
+        >
+          <MarkdownInline allowLinks={false}>{t.label}</MarkdownInline>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- 表单字段 ---------- */
+export function Field({ label, hint, error, children }: {
+  label?: ReactNode; hint?: string; error?: string; children: ReactNode;
+}) {
+  return (
+    <div className="field">
+      {label && <div className="field-label">{markdownInlineNode(label)}</div>}
+      {children}
+      {error && <div className="field-error"><MarkdownInline>{error}</MarkdownInline></div>}
+      {!error && hint && <div className="field-help"><MarkdownInline>{hint}</MarkdownInline></div>}
+    </div>
+  );
+}
+
+/* ---------- toast ---------- */
 let toastId = 0;
 type Toast = { id: number; text: string };
 const toastListeners = new Set<(t: Toast[]) => void>();
@@ -175,16 +257,17 @@ export function ToastRegion() {
   );
 }
 
-/** 确认按钮（清空数据等二次确认，AGENTS.md §13） */
-export function ConfirmButton({ onConfirm, children, question, className = 'btn', title }: {
-  onConfirm: () => void; children: ReactNode; question: string; className?: string; title?: string;
+/* ---------- 二次确认按钮（AGENTS.md §13） ---------- */
+export function ConfirmButton({ onConfirm, children, question, variant = 'default', size = 'md', title }: {
+  onConfirm: () => void; children: ReactNode; question: string; variant?: ButtonVariant; size?: 'md' | 'sm'; title?: string;
 }) {
   const [arm, setArm] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(timer.current), []);
   return (
-    <button
-      className={className}
+    <Button
+      variant={arm ? 'danger' : variant}
+      size={size}
       title={title ?? question}
       onClick={() => {
         if (!arm) {
@@ -197,7 +280,7 @@ export function ConfirmButton({ onConfirm, children, question, className = 'btn'
         onConfirm();
       }}
     >
-      {arm ? <MarkdownInline allowLinks={false}>再次点击确认</MarkdownInline> : markdownInlineNode(children, false)}
-    </button>
+      {arm ? '再次点击确认' : children}
+    </Button>
   );
 }

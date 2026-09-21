@@ -10,15 +10,20 @@
     />
     <title>物理实验小助手</title>
     <script>
-      // 提前应用主题，避免闪烁
+      // 首帧前应用主题，避免闪烁。设置持久化在 localStorage 'pea.settings'（zustand persist）。
       (function () {
         try {
-          var t = localStorage.getItem('pea.theme');
-          if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.dataset.theme = 'dark';
-          } else {
-            document.documentElement.dataset.theme = 'light';
+          var mode = 'system';
+          var raw = localStorage.getItem('pea.settings');
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var t = parsed && parsed.state && parsed.state.theme;
+            if (t === 'light' || t === 'dark' || t === 'system') mode = t;
           }
+          var dark =
+            mode === 'dark' ||
+            (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
         } catch (e) {
           document.documentElement.dataset.theme = 'light';
         }

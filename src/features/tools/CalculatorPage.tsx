@@ -1,24 +1,29 @@
-/** 科学计算器（plan §9.5）：安全 AST 求值，支持角度/弧度与单位标记 */
+/** 科学计算器：core/expression 安全 AST 求值（无 eval），支持角度/弧度切换与最近 20 条历史。 */
 import { useMemo, useState } from 'react';
-import { compileExpression, evaluateExpression, ExpressionError } from '../../core/expression';
-import { Panel, CopyButton } from '../../components/ui';
-import { useSettings } from '../../stores/settings';
+import { compileExpression, evaluateExpression } from '../../core/expression';
+import { Badge, Button, CopyButton, EmptyState, Panel } from '../../components/ui';
 import { MarkdownInline } from '../../components/Markdown';
+import { useSettings } from '../../stores/settings';
 
-const KEYS: string[][] = [
-  ['7', '8', '9', '/', 'sqrt(', 'sin('],
-  ['4', '5', '6', '*', '^', 'cos('],
-  ['1', '2', '3', '-', '(', 'tan('],
-  ['0', '.', 'E', '+', ')', 'ln('],
-  ['pi', 'e', 'exp(', 'log(', 'abs(', 'atan('],
+/** 键盘 token（5 列网格自动排布）；token 原样插入表达式，键面显示时去掉左括号。 */
+const PAD: string[] = [
+  '7', '8', '9', '/', 'sqrt(',
+  '4', '5', '6', '*', 'sin(',
+  '1', '2', '3', '-', 'cos(',
+  '0', '.', 'E', '+', 'tan(',
+  'pi', 'e', '^', 'ln(', 'log(',
+  '(', ')', 'exp(', 'abs(', 'atan(',
 ];
+
+type EvalResult = { value: number } | { error: string };
 
 export function CalculatorPage() {
   const angleUnit = useSettings((s) => s.angleUnit);
+  const set = useSettings((s) => s.set);
   const [text, setText] = useState('');
   const [history, setHistory] = useState<{ expr: string; value: string }[]>([]);
 
-  const result = useMemo(() => {
+  const result = useMemo<EvalResult | null>(() => {
     const src = text.trim();
     if (!src) return null;
     try {
@@ -26,8 +31,7 @@ export function CalculatorPage() {
       if (compiled.variables.length > 0) {
         return { error: `包含未知变量：${compiled.variables.join(', ')}` };
       }
-      const value = evaluateExpression(compiled, {}, { angleMode: angleUnit });
-      return { value };
+      return { value: evaluateExpression(compiled, {}, { angleMode: angleUnit }) };
     } catch (err) {
       return { error: (err as Error).message };
     }
@@ -35,57 +39,83 @@ export function CalculatorPage() {
 
   const append = (s: string) => setText((t) => t + s);
 
+  const commit = (replace: boolean) => {
+    if (!result || !('value' in result)) return;
+    const entry = { expr: text.trim(), value: String(result.value) };
+    setHistory((h) => [entry, ...h].slice(0, 20));
+    if (replace) setText(entry.value);
+  };
+
   return (
-    <main className="page">
-      <h1><MarkdownInline>科学计算器</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`安全 AST 求值（无 \`eval\`）。当前角度模式：**${angleUnit === 'deg' ? '度（°）' : '弧度（rad）'}**（可在设置修改）`}</MarkdownInline></p>
-      <div style={{ maxWidth: 640 }}>
-        <Panel title="表达式">
+    <>
+      <header className="page-head">
+        <div className="row-between">
+          <h1 className="page-title"><MarkdownInline>科学计算器</MarkdownInline></h1>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="点击切换角度/弧度（也可在设置中修改）"
+            onClick={() => set('angleUnit', angleUnit === 'deg' ? 'rad' : 'deg')}
+          >
+            <Badge variant="accent">{`角度：${angleUnit === 'deg' ? 'deg（°）' : 'rad（弧度）'}`}</Badge>
+          </Button>
+        </div>
+        <p className="page-lead">
+          <MarkdownInline>{'安全 AST 求值（无 `eval`）。支持四则、幂 `^`、`sqrt`、`sin/cos/tan`、`ln/log`、`exp/abs/atan`、常量 `pi`/`e` 与科学记数 `E`；三角函数按当前角度模式解释。'}</MarkdownInline>
+        </p>
+      </header>
+
+      <div className="stack-lg" style={{ maxWidth: 620 }}>
+        <Panel title="表达式" sub="Enter 计算并记入历史；= 记入历史并回填结果">
           <input
-            className="input" style={{ fontSize: 16 }}
+            className="input mono"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && result && 'value' in result) {
-                setHistory((h) => [{ expr: text, value: String(result.value) }, ...h].slice(0, 20));
-              }
-            }}
-            placeholder="如 2*pi*1.5e3 或 sqrt(3^2+4^2)"
+            onKeyDown={(e) => { if (e.key === 'Enter') commit(false); }}
+            placeholder="如 2*pi*1.5E3 或 sqrt(3^2+4^2)"
+            aria-label="表达式"
+            spellCheck={false}
           />
-          <div className="calc-display" style={{ marginTop: 8 }}>
-            {result === null ? '​' : 'error' in result ? <span style={{ color: 'var(--danger)' }}><MarkdownInline>{result.error}</MarkdownInline></span> : result.value}
+          <div className="calc-display" style={{ marginTop: 8 }} aria-live="polite">
+            {result === null ? (
+              <span className="muted"><MarkdownInline>输入表达式后实时预览结果</MarkdownInline></span>
+            ) : 'error' in result ? (
+              <span className="muted small"><MarkdownInline>{result.error}</MarkdownInline></span>
+            ) : (
+              String(result.value)
+            )}
           </div>
-          <div className="calc-pad" style={{ marginTop: 10 }}>
-            {KEYS.flat().map((k) => (
-              <button key={k} className="btn calc-key" onClick={() => append(k)}><MarkdownInline allowLinks={false}>{k.replace('(', '')}</MarkdownInline></button>
+          <div className="calc-pad">
+            {PAD.map((k) => (
+              <Button key={k} className="calc-key" onClick={() => append(k)}>
+                {k.replace('(', '')}
+              </Button>
             ))}
-            <button className="btn calc-key" onClick={() => setText((t) => t.slice(0, -1))}><MarkdownInline allowLinks={false}>⌫</MarkdownInline></button>
-            <button className="btn calc-key" onClick={() => setText('')}><MarkdownInline allowLinks={false}>C</MarkdownInline></button>
-            <button className="btn calc-key" onClick={() => setText((t) => t + '(')}><MarkdownInline allowLinks={false}>（</MarkdownInline></button>
-            <button className="btn calc-key" onClick={() => setText((t) => t + ')')}><MarkdownInline allowLinks={false}>）</MarkdownInline></button>
-            <button
-              className="btn btn-primary calc-key"
-              onClick={() => {
-                if (result && 'value' in result) {
-                  setHistory((h) => [{ expr: text, value: String(result.value) }, ...h].slice(0, 20));
-                  setText(String(result.value));
-                }
-              }}
-            ><MarkdownInline allowLinks={false}>=</MarkdownInline></button>
+            <Button className="calc-key" title="退格" onClick={() => setText((t) => t.slice(0, -1))}>⌫</Button>
+            <Button className="calc-key" title="清空输入" onClick={() => setText('')}>C</Button>
+            <Button variant="primary" className="calc-key" style={{ gridColumn: 'span 3' }} onClick={() => commit(true)}>=</Button>
           </div>
         </Panel>
-        {history.length > 0 && (
-          <Panel title="历史" actions={<button className="btn btn-sm" onClick={() => setHistory([])}><MarkdownInline allowLinks={false}>清空</MarkdownInline></button>}>
-            {history.map((h, i) => (
-              <div key={i} className="row" style={{ justifyContent: 'space-between' }}>
-                <span className="mono small"><MarkdownInline>{`${h.expr} = **${h.value}**`}</MarkdownInline></span>
-                <CopyButton text={h.value} label="复制" />
-              </div>
-            ))}
-          </Panel>
-        )}
+
+        <Panel
+          title="历史"
+          sub="最近 20 条"
+          actions={history.length > 0 ? <Button size="sm" onClick={() => setHistory([])}>清空</Button> : undefined}
+        >
+          {history.length === 0 ? (
+            <EmptyState title="暂无历史记录" hint="计算成功后按 Enter 或 = 将表达式与结果记入历史" />
+          ) : (
+            <div className="stack">
+              {history.map((h, i) => (
+                <div key={i} className="row-between">
+                  <span className="mono small wrap"><MarkdownInline>{`\`${h.expr}\` = **${h.value}**`}</MarkdownInline></span>
+                  <CopyButton text={h.value} label="复制结果" />
+                </div>
+              ))}
+            </div>
+          )}
+        </Panel>
       </div>
-    </main>
+    </>
   );
 }
-

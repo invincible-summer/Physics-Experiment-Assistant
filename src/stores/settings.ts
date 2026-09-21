@@ -30,7 +30,8 @@ export interface Preferences {
   showProvenance: boolean;
   showDiagnostics: boolean;
   expertMode: boolean;
-  theme: 'light' | 'dark';
+  /** 主题：跟随系统 / 浅色 / 深色 */
+  theme: 'system' | 'light' | 'dark';
   /** 桌面主边栏折叠状态；移动端仍使用底栏。 */
   sidebarCollapsed: boolean;
   autosave: boolean;
@@ -60,7 +61,7 @@ const defaults: Preferences = {
   showProvenance: true,
   showDiagnostics: true,
   expertMode: false,
-  theme: 'light',
+  theme: 'system',
   sidebarCollapsed: false,
   autosave: true,
 };

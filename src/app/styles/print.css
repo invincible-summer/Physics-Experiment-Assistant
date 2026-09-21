@@ -1,0 +1,78 @@
+/** 打印样式：白底可打印，隐藏导航与交互控件 */
+
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    --paper: #ffffff;
+    --paper-raised: #ffffff;
+    --paper-sunken: #f5f5f5;
+    --paper-hover: #f5f5f5;
+    --sidebar: #ffffff;
+    --ink-1: #111111;
+    --ink-2: #333333;
+    --ink-3: #666666;
+    --line: #cccccc;
+    --line-strong: #999999;
+    color-scheme: light;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .app-sidebar,
+  .mobile-nav,
+  .topbar,
+  .toast-region,
+  .grid-toolbar,
+  .grid-actions,
+  .panel-actions,
+  .fc-actions,
+  .row-right,
+  .step-nav {
+    display: none !important;
+  }
+
+  .app-main,
+  .is-collapsed .app-main {
+    margin-left: 0;
+  }
+
+  .app-content,
+  .app-content.wide {
+    max-width: none;
+    padding: 0;
+  }
+
+  .workbench,
+  .workbench.inspector-hidden {
+    display: block;
+  }
+  .wb-inspector {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    margin-top: 16px;
+  }
+
+  .panel, .result-card, .formula-card {
+    border: 1px solid #cccccc;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  details.fold {
+    break-inside: avoid;
+  }
+  details.fold:not([open]) .fold-body {
+    display: block;
+  }
+  details.fold > summary::before {
+    display: none;
+  }
+
+  a {
+    color: #111111;
+    text-decoration: none;
+  }
+}

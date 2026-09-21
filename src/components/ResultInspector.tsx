@@ -1,6 +1,6 @@
 /**
- * ResultInspector — 结果检查器（plan.md §4.4）。
- * 统一层级：最终结果 → 标准规则 → 公式 → 数值代入 → 未修约 → 分量 → 修约 → 来源。
+ * ResultInspector — 结果检查器。
+ * 统一层级：最终结果 → 标准规则 → 公式 → 数值代入 → 未修约 → 分量 → 修约 → 来源 → 诊断。
  */
 import { ReactNode } from 'react';
 import { ResultItem } from '../core/results';
@@ -12,7 +12,11 @@ import { MarkdownInline, MarkdownList } from './Markdown';
 export function ResultInspector({ results, profileName }: { results: ResultItem[]; profileName?: string }) {
   const showProvenance = useSettings((s) => s.showProvenance);
   if (results.length === 0) {
-    return <div className="empty-state"><div><MarkdownInline>等待输入数据后显示计算结果</MarkdownInline></div></div>;
+    return (
+      <div className="empty-state">
+        <div className="small muted"><MarkdownInline>等待输入数据后显示计算结果</MarkdownInline></div>
+      </div>
+    );
   }
   return (
     <div>
@@ -29,10 +33,15 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
   return (
     <div className="result-card">
       <div className="rc-head">
-        <span>{item.symbol ? <Tex tex={`${item.symbol} = `} /> : null}<MarkdownInline>{item.title}</MarkdownInline></span>
-        <span style={{ flex: 1 }} />
+        <span>
+          {item.symbol ? <Tex tex={`${item.symbol} = `} /> : null}
+          <MarkdownInline>{item.title}</MarkdownInline>
+        </span>
+        <span className="spacer" />
         {item.warnings && item.warnings.length > 0 && (
-          <span className="badge badge-warning" title={item.warnings.join('\n')}><MarkdownInline>{`警告 ${item.warnings.length}`}</MarkdownInline></span>
+          <span className="badge badge-warning" title={item.warnings.join('\n')}>
+            <MarkdownInline allowLinks={false}>{`警告 ${item.warnings.length}`}</MarkdownInline>
+          </span>
         )}
       </div>
       <div className="rc-body">
@@ -44,7 +53,9 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
               <span className="value">{item.finalValue}</span>
             )}
             {item.unit && <span className="unit"><MarkdownInline>{item.unit}</MarkdownInline></span>}
-            {item.relativeText && <span className="rel"><MarkdownInline>{`相对不确定度 ${item.relativeText}`}</MarkdownInline></span>}
+            {item.relativeText && (
+              <span className="rel"><MarkdownInline>{`相对不确定度 ${item.relativeText}`}</MarkdownInline></span>
+            )}
           </div>
         )}
         {item.ruleNotes && item.ruleNotes.length > 0 && (
@@ -56,9 +67,11 @@ export function ResultCard({ item, profileName, showProvenance = true }: {
           <Section label="公式 → 数值代入 → 未修约值" defaultOpen>
             {item.steps.map((s, i) => (
               <div key={i} style={{ marginBottom: 7 }}>
-                {s.formulaLatex && <div><Tex tex={s.formulaLatex} display /></div>}
+                {s.formulaLatex && <Tex tex={s.formulaLatex} display />}
                 {s.substitution && <div className="subst"><MarkdownInline>{s.substitution}</MarkdownInline></div>}
-                {s.unrounded && <div className="subst" style={{ background: 'none', border: '1px dashed var(--border)' }}><MarkdownInline>{`**未修约：**${s.unrounded}`}</MarkdownInline></div>}
+                {s.unrounded && (
+                  <div className="subst unrounded"><MarkdownInline>{`**未修约：**${s.unrounded}`}</MarkdownInline></div>
+                )}
                 {s.note && <div className="small muted"><MarkdownInline>{s.note}</MarkdownInline></div>}
               </div>
             ))}
@@ -108,18 +121,26 @@ export function ContributionChart({ components }: { components: NonNullable<Resu
     <div style={{ overflowX: 'auto' }}>
       <table className="contrib-table">
         <thead>
-          <tr><th><MarkdownInline>分量</MarkdownInline></th><th><MarkdownInline>说明</MarkdownInline></th><th className="num"><MarkdownInline>数值</MarkdownInline></th>{total > 0.001 ? <th style={{ minWidth: 90 }}><MarkdownInline>贡献率</MarkdownInline></th> : null}</tr>
+          <tr>
+            <th><MarkdownInline>分量</MarkdownInline></th>
+            <th><MarkdownInline>说明</MarkdownInline></th>
+            <th className="num"><MarkdownInline>数值</MarkdownInline></th>
+            {total > 0.001 ? <th style={{ minWidth: 96 }}><MarkdownInline>贡献率</MarkdownInline></th> : null}
+          </tr>
         </thead>
         <tbody>
           {components.map((c, i) => (
             <tr key={i}>
               <td><Tex tex={c.symbol} /></td>
-              <td><MarkdownInline>{c.label}</MarkdownInline>{c.formulaLatex ? <span className="muted small"> · <Tex tex={c.formulaLatex} /></span> : null}</td>
+              <td>
+                <MarkdownInline>{c.label}</MarkdownInline>
+                {c.formulaLatex ? <span className="muted small"> · <Tex tex={c.formulaLatex} /></span> : null}
+              </td>
               <td className="num">{fmtNum(c.value)}</td>
               {total > 0.001 ? (
                 <td>
-                  <div className="row" style={{ gap: 6 }}>
-                    <div className="contrib-bar" style={{ width: `${Math.max(1, (c.fraction ?? 0) * 80)}px` }} />
+                  <div className="row row-nowrap" style={{ gap: 6 }}>
+                    <div className="contrib-bar" style={{ width: `${Math.max(1, (c.fraction ?? 0) * 84)}px` }} />
                     <span className="small mono">{((c.fraction ?? 0) * 100).toFixed(1)}%</span>
                   </div>
                 </td>
@@ -130,7 +151,9 @@ export function ContributionChart({ components }: { components: NonNullable<Resu
       </table>
       {components.some((c) => c.substitution) && (
         <div className="small muted" style={{ marginTop: 4 }}>
-          {components.filter((c) => c.substitution).map((c, i) => <div key={i}><MarkdownInline>{`${c.symbol}：${c.substitution}`}</MarkdownInline></div>)}
+          {components.filter((c) => c.substitution).map((c, i) => (
+            <div key={i}><MarkdownInline>{`${c.symbol}：${c.substitution}`}</MarkdownInline></div>
+          ))}
         </div>
       )}
     </div>

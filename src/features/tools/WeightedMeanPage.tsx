@@ -4,11 +4,11 @@ import { weightedMean, weightSum } from '../../core/statistics';
 import { parseTSV } from '../../components/DataGrid';
 import { parseNumericText } from '../../core/numeric';
 import { useSettings } from '../../stores/settings';
-import { Panel } from '../../components/ui';
+import { EmptyState, Field, Notice, Panel, Tabs } from '../../components/ui';
 import { makeResult } from '../../core/results';
 import { ResultCard } from '../../components/ResultInspector';
 import { PhysicsPlot } from '../../components/PhysicsPlot';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 
 type Mode = 'inverse-square' | 'manual';
 
@@ -68,8 +68,15 @@ export function WeightedMeanPage() {
         {
           formulaLatex: '\\bar{x}_w = \\frac{\\sum_i w_i x_i}{\\sum_i w_i}',
           substitution: `wi = ${mode === 'inverse-square' ? '1/ui²' : '手动输入'}，Σwi = ${r.sw.toPrecision(8)}`,
-          unrounded: `x̄w = ${r.xw.toPrecision(12)}，u(x̄w) = ${r.uw.toPrecision(10)}`,
+          unrounded: `x̄w = ${r.xw.toPrecision(12)}`,
         },
+        ...(mode === 'inverse-square'
+          ? [{
+              formulaLatex: 'u(\\bar{x}_w) = \\frac{1}{\\sqrt{\\sum_i w_i}}',
+              substitution: `Σwi = ${r.sw.toPrecision(8)}`,
+              unrounded: `u(x̄w) = ${r.uw.toPrecision(10)}`,
+            }]
+          : []),
       ],
       ruleNotes: [
         '加权平均属于通用扩展，不是上传课程讲义的必修公式',
@@ -82,24 +89,40 @@ export function WeightedMeanPage() {
   }, [result, mode]);
 
   return (
-    <main className="page">
-      <h1><MarkdownInline>加权平均</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>{`两列数据：\`x\` 与 \`u\`（或手动权重 \`w\`）。当前标准 **${profile.shortName}**（加权平均为通用扩展，与标准无关）`}</MarkdownInline></p>
+    <div className="stack-lg">
+      <header className="page-head">
+        <h1 className="page-title"><MarkdownInline>加权平均</MarkdownInline></h1>
+        <p className="page-lead">
+          <MarkdownInline>{'两列数据：$x$ 与不确定度 $u$（或手动权重 $w$），计算加权平均'}</MarkdownInline>
+        </p>
+      </header>
+      <Notice variant="info">
+        <MarkdownBlock>{'加权平均是**通用扩展**（AGENTS §11），不是上传课程讲义的必修公式，结果与当前标准配置（' + `**${profile.shortName}**` + '）无关。'}</MarkdownBlock>
+      </Notice>
       <div className="tool-layout">
         <div className="stack">
-          <Panel title="数据">
-            <div className="row" style={{ marginBottom: 8 }}>
-              <select className="select" style={{ maxWidth: 260 }} value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
-                <option value="inverse-square">独立测量：wi = 1/ui²</option>
-                <option value="manual">手动权重 wi</option>
-              </select>
+          <Panel title="数据输入">
+            <div className="stack">
+              <Tabs
+                ariaLabel="权重模式"
+                tabs={[
+                  { id: 'inverse-square', label: '$w_i=1/u_i^2$（独立测量）' },
+                  { id: 'manual', label: '手动权重 $w_i$' },
+                ]}
+                active={mode}
+                onChange={(id) => setMode(id as Mode)}
+              />
+              <Field
+                label={mode === 'inverse-square' ? '两列：$x$ 与 $u$' : '两列：$x$ 与 $w$'}
+                hint="两列（Tab/逗号分隔），可从 Excel 粘贴"
+              >
+                <textarea
+                  className="textarea" rows={10} value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={mode === 'inverse-square' ? 'x\tu\n9.42\t0.05\n9.48\t0.03' : 'x\tw\n9.42\t2\n9.48\t1'}
+                />
+              </Field>
             </div>
-            <textarea
-              className="textarea" rows={10} value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={mode === 'inverse-square' ? 'x\tu\n9.42\t0.05\n9.48\t0.03' : 'x\tw\n9.42\t2\n9.48\t1'}
-            />
-            <div className="field-help"><MarkdownInline>两列（Tab/逗号分隔），可从 Excel 粘贴</MarkdownInline></div>
           </Panel>
           {result && !('error' in result) && result.valid.length > 0 && (
             <Panel title="权重占比">
@@ -119,12 +142,12 @@ export function WeightedMeanPage() {
         </div>
         <div className="stack">
           {result && 'error' in result ? (
-            <div className="notice notice-danger"><div className="n-body"><MarkdownInline>{result.error}</MarkdownInline></div></div>
+            <Notice variant="danger"><MarkdownInline>{result.error}</MarkdownInline></Notice>
           ) : resultItem ? <ResultCard item={resultItem} profileName={profile.shortName} /> : (
-            <Panel title="结果"><div className="empty-state"><div><MarkdownInline>输入数据后计算</MarkdownInline></div></div></Panel>
+            <Panel title="结果"><EmptyState title="等待数据" hint="输入两列数据后自动计算" /></Panel>
           )}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

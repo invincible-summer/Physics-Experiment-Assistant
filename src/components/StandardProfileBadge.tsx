@@ -1,23 +1,27 @@
-/** 当前标准配置徽章（plan §19 组件清单） */
+/** 当前标准配置徽章（点击前往设置切换） */
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../stores/settings';
 import { Badge, BadgeVariant } from './ui';
 
-export function StandardProfileBadge({ clickable = true }: { clickable?: boolean }) {
+export function StandardProfileBadge({ clickable = true, compact = false }: {
+  clickable?: boolean;
+  /** 侧栏折叠态：只显示短名 */
+  compact?: boolean;
+}) {
   const profile = useSettings((s) => s.activeProfile());
   const navigate = useNavigate();
   const variant: BadgeVariant = profile.kind === 'course' ? 'accent' : profile.kind === 'gbt' ? 'info' : 'warning';
-  const el = (
-    <Badge variant={variant} title={profile.description}>
-      {`**标准：**${profile.shortName}${profile.kind === 'custom' ? '（不代表课程或 GB/T）' : ''}`}
-    </Badge>
-  );
+  const label = compact
+    ? profile.shortName
+    : `**标准：**${profile.shortName}${profile.kind === 'custom' ? '（自定义，不代表课程或 GB/T）' : ''}`;
+  const el = <Badge variant={variant} title={profile.description}>{label}</Badge>;
   if (!clickable) return el;
   return (
     <button
-      style={{ all: 'unset', cursor: 'pointer' }}
+      style={{ all: 'unset', cursor: 'pointer', borderRadius: 999 }}
       onClick={() => navigate('/settings')}
-      title="前往设置切换标准"
+      title="前往设置切换标准配置"
+      aria-label={`当前标准 ${profile.name}，前往设置切换`}
     >
       {el}
     </button>

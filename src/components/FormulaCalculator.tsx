@@ -1,10 +1,12 @@
 /**
- * FormulaCalculator — 公式计算器（plan §8.1）。
+ * FormulaCalculator — 公式计算器。
  * 选目标变量 → 填数值与单位 → 可选不确定度 → 计算 → 代入过程 + 传播贡献。
+ * 求解路径：constants + 变量 scope → expression / solutions[target] / customCompute →
+ * （可传播时）propagateUncertainty → formatMeasurement（按当前 profile）。
  */
 import { useMemo, useState } from 'react';
 import { FormulaDefinition } from '../formulas/types';
-import { compileExpression, evaluateExpression, solveNumeric } from '../core/expression';
+import { compileExpression, evaluateExpression } from '../core/expression';
 import { parseNumericText } from '../core/numeric';
 import { propagateUncertainty } from '../core/uncertainty';
 import { tryGetUnitDef, unitsOfFamily, convert } from '../core/quantity';
@@ -13,6 +15,7 @@ import { ResultCard } from './ResultInspector';
 import { makeResult } from '../core/results';
 import { Tex } from './katex';
 import { useSettings } from '../stores/settings';
+import { Badge, Button, Notice } from './ui';
 import { MarkdownInline } from './Markdown';
 
 interface VarState { raw: string; unit: string; uncRaw: string }
@@ -100,14 +103,11 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         expressionSource = formula.solutions[target];
         symbol = target;
       } else {
-        // 数值求根兜底：f(x) = 原式（移项：原式把 x 移到左边）——构造 (原式) - (移项后)？此处用牛顿不可靠，退回原式重排
         expressionSource = formula.expression;
         symbol = target;
       }
       let value: number;
       if (target !== '__primary__' && !formula.solutions?.[target]) {
-        // 重排：原式 result = f(...vars)；解 target 时把其它变量代入后数值求根
-        // 构造 g(x) = f(..., x) - resultKnown；resultKnown 需已知，通常不存在 → 不支持，提示
         value = NaN;
       } else if (formula.customCompute && target === '__primary__') {
         value = formula.customCompute(scope);
@@ -115,12 +115,10 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         const compiled = compileExpression(expressionSource);
         value = evaluateExpression(compiled, scope);
         if (!Number.isFinite(value) && target !== '__primary__') {
-          const root = solveNumeric(compiled, target, scope);
-          value = root;
+          value = NaN;
         }
       }
 
-      // 不确定度传播
       const withUnc = inputs.filter((i) => i.uncertainty !== undefined && i.uncertainty > 0);
       let propagation: ReturnType<typeof propagateUncertainty> | null = null;
       if (withUnc.length > 0 && formula.uncertainty?.propagatable) {
@@ -139,7 +137,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         .map((i) => `${i.name}=${formatFull(i.value)}${i.unit ? ` ${i.unit}` : ''}`)
         .join('，');
       const formatted = Number.isFinite(value)
-        ? formatMeasurement(value, propagation?.combined ?? 0, { ...profile.sigfig, uncertaintyDigits: profile.sigfig.uncertaintyDigits })
+        ? formatMeasurement(value, propagation?.combined ?? 0, { ...profile.sigfig })
         : null;
 
       return makeResult({
@@ -157,11 +155,11 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         components: propagation?.terms
           .filter((t) => t.contribution > 0)
           .map((t) => ({
-            symbol: t.symbol, label: `灵敏度 c=${formatFull(t.sensitivity)}`,
+            symbol: t.symbol, label: `灵敏度 $c=${formatFull(t.sensitivity)}$`,
             value: t.contribution, fraction: t.fraction,
           })),
         roundingNote: formatted?.roundingNote,
-        ruleNotes: [`${profile.name}：${profile.kind === 'gbt' ? 'GB/T 模式（u 为标准不确定度）' : '课程模式（Δ 为置信概率意义下的不确定度）'}`],
+        ruleNotes: [`${profile.name}：${profile.kind === 'gbt' ? 'GB/T 模式（$u$ 为标准不确定度）' : '课程模式（$\\Delta$ 为置信概率意义下的不确定度）'}`],
         provenance: formula.provenance,
       });
     } catch (err) {
@@ -177,9 +175,15 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
 
   return (
     <div>
-      <div className="row" style={{ margin: '8px 0' }}>
+      <div className="row" style={{ margin: '4px 0 12px' }}>
         <span className="field-label" style={{ margin: 0 }}><MarkdownInline>求哪个量</MarkdownInline></span>
-        <select className="select" style={{ maxWidth: 320 }} value={target} onChange={(e) => setTarget(e.target.value)}>
+        <select
+          className="select"
+          style={{ maxWidth: 320 }}
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          aria-label="求解目标量"
+        >
           {targets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
       </div>
@@ -188,11 +192,13 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
           const st = vars[v.name];
           const options = unitOptions(v.unit);
           return (
-            <div key={v.name}>
+            <div key={v.name} className="field">
               <div className="field-label">
                 <Tex tex={v.name} />
                 <span><MarkdownInline>{v.label}</MarkdownInline></span>
-                {v.defaultValue !== undefined && <span className="badge badge-default"><MarkdownInline>{`默认 ${v.defaultValue}`}</MarkdownInline></span>}
+                {v.defaultValue !== undefined && (
+                  <Badge variant="default">{`默认 ${v.defaultValue}`}</Badge>
+                )}
               </div>
               <div className="input-unit">
                 <input
@@ -204,9 +210,10 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
                 />
                 {options.length > 1 && st ? (
                   <select
-                    className="select" style={{ maxWidth: 92 }}
+                    className="select"
                     value={st.unit}
                     onChange={(e) => setVars((s) => ({ ...s, [v.name]: { ...st, unit: e.target.value } }))}
+                    aria-label={`${v.label}单位`}
                   >
                     {options.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
@@ -215,7 +222,8 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
               {v.note && <div className="field-help"><MarkdownInline>{v.note}</MarkdownInline></div>}
               {showUnc && (
                 <input
-                  className="input" style={{ marginTop: 4 }} placeholder={`不确定度 ±（${v.unit || '同输入'}，可选）`}
+                  className="input"
+                  placeholder={`不确定度 ±（${v.unit || '同输入'}，可选）`}
                   value={st?.uncRaw ?? ''}
                   inputMode="decimal"
                   onChange={(e) => setVars((s) => ({ ...s, [v.name]: { ...st, uncRaw: e.target.value } }))}
@@ -226,15 +234,19 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         })}
       </div>
       {(formula.constants ?? []).length > 0 && (
-        <div className="small muted" style={{ marginTop: 6 }}>
+        <div className="small muted" style={{ marginTop: 8 }}>
           <MarkdownInline>{`**常数：**${(formula.constants ?? []).map((c) => `${c.label} = ${c.value}${c.unit ? ` ${c.unit}` : ''}${c.isExact ? '（精确）' : ''}`).join('；')}`}</MarkdownInline>
         </div>
       )}
-      {formula.conditions && <div className="notice notice-info"><div className="n-body"><MarkdownInline>{formula.conditions}</MarkdownInline></div></div>}
-      <div className="row" style={{ margin: '10px 0' }}>
-        <button className="btn btn-primary" onClick={() => setComputed(compute())} disabled={!allFilled || hasInvalid}>
-          <MarkdownInline allowLinks={false}>计算</MarkdownInline>
-        </button>
+      {formula.conditions && (
+        <div style={{ marginTop: 8 }}>
+          <Notice variant="info"><MarkdownInline>{formula.conditions}</MarkdownInline></Notice>
+        </div>
+      )}
+      <div className="row" style={{ margin: '12px 0' }}>
+        <Button variant="primary" onClick={() => setComputed(compute())} disabled={!allFilled || hasInvalid}>
+          计算
+        </Button>
         {!allFilled && <span className="small muted"><MarkdownInline>请填写全部变量</MarkdownInline></span>}
         {hasInvalid && <span className="small" style={{ color: 'var(--danger)' }}><MarkdownInline>存在非法数值输入</MarkdownInline></span>}
       </div>

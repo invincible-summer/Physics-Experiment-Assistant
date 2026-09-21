@@ -24,7 +24,7 @@ export function QuantityInput({ label, value, onChange, unit, onUnitChange, unit
   const unitOptions = useMemo(() => (unitFamily ? unitsOfFamily(unitFamily) : []), [unitFamily]);
   const invalid = errorHint !== false && value.trim() !== '' && !parsed.ok;
   return (
-    <div>
+    <div className="field">
       {label && <div className="field-label">{markdownInlineNode(label)}</div>}
       <div className="input-unit">
         <input
@@ -37,17 +37,17 @@ export function QuantityInput({ label, value, onChange, unit, onUnitChange, unit
         {unit !== undefined && onUnitChange && unitFamily && unitOptions.length > 0 ? (
           <select
             className="select"
-            style={{ maxWidth: 96 }}
             value={unit}
             onChange={(e) => onUnitChange(e.target.value)}
+            aria-label="单位"
           >
             {unitOptions.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
-        ) : unit !== undefined ? (
+        ) : unit !== undefined && unit !== '' ? (
           <span className="unit-chip"><MarkdownInline>{unit}</MarkdownInline></span>
         ) : null}
       </div>
-      {invalid && <div className="field-error"><MarkdownInline>{parsed.error}</MarkdownInline></div>}
+      {invalid && <div className="field-error"><MarkdownInline>{parsed.error ?? '数值格式不正确'}</MarkdownInline></div>}
       {!invalid && hint && <div className="field-help"><MarkdownInline>{hint}</MarkdownInline></div>}
       {extra}
     </div>

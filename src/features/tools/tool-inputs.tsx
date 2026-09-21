@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import { parseNumericText } from '../../core/numeric';
 import { parseTSV } from '../../components/DataGrid';
-import { MarkdownInline } from '../../components/Markdown';
+import { Field } from '../../components/ui';
 
 /** 把文本按行/空白/逗号拆成数值 */
 function parseColumn(text: string): { values: number[]; bad: number; count: number } {
@@ -25,8 +25,10 @@ export function ColumnInput({ label, placeholder, onChange, rows = 10 }: {
   const parsed = useMemo(() => parseColumn(text), [text]);
 
   return (
-    <div>
-      <div className="field-label"><MarkdownInline>{label}</MarkdownInline></div>
+    <Field
+      label={label}
+      hint={`已识别 **${parsed.values.length}** 个数值${parsed.bad > 0 ? `，**${parsed.bad}** 个无法解析（已忽略）` : ''}；支持科学记数法`}
+    >
       <textarea
         className="textarea"
         rows={rows}
@@ -38,10 +40,7 @@ export function ColumnInput({ label, placeholder, onChange, rows = 10 }: {
           onChange(parseColumn(next).values);
         }}
       />
-      <div className="field-help">
-        <MarkdownInline>{`已识别 ${parsed.values.length} 个数值${parsed.bad > 0 ? `，${parsed.bad} 个无法解析（已忽略）` : ''} · 支持科学记数法`}</MarkdownInline>
-      </div>
-    </div>
+    </Field>
   );
 }
 
@@ -72,8 +71,10 @@ export function PairInput({ label, onChange }: {
   const result = useMemo(() => parsePairs(text), [text]);
 
   return (
-    <div>
-      <div className="field-label">{label}</div>
+    <Field
+      label={label}
+      hint={`已识别 **${result.n}** 行；无法解析的单元格记为缺失`}
+    >
       <textarea
         className="textarea"
         rows={12}
@@ -86,7 +87,6 @@ export function PairInput({ label, onChange }: {
           onChange(r.xs, r.ys, r.rawXs, r.rawYs);
         }}
       />
-      <div className="field-help"><MarkdownInline>{`已识别 ${result.n} 行（无法解析的行会提示）`}</MarkdownInline></div>
-    </div>
+    </Field>
   );
 }

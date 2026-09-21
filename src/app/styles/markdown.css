@@ -1,0 +1,145 @@
+/** Markdown 渲染层样式（对应 src/components/Markdown.tsx 输出的 .md-* 结构） */
+
+.md-inline {
+  overflow-wrap: anywhere;
+}
+
+.md-block {
+  overflow-wrap: anywhere;
+}
+
+.md-block > * + * {
+  margin-top: 8px;
+}
+
+.md-block h1, .md-block h2, .md-block h3,
+.md-block h4, .md-block h5, .md-block h6 {
+  font-family: var(--serif);
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--ink-1);
+}
+.md-block h1 { font-size: var(--fs-2xl); }
+.md-block h2 { font-size: var(--fs-xl); }
+.md-block h3 { font-size: var(--fs-lg); }
+.md-block h4, .md-block h5, .md-block h6 { font-size: var(--fs-md); }
+
+.md-block hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 12px 0;
+}
+
+.md-block pre {
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
+
+.md-inline code,
+.md-block p code,
+.md-block li code,
+.md-inline .md-code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.08em 0.34em;
+}
+
+.md-block blockquote {
+  border-left: 3px solid var(--line-strong);
+  padding: 2px 0 2px 12px;
+  color: var(--ink-2);
+}
+
+.md-block ul:not(.md-task-list),
+.md-list {
+  list-style: none;
+  padding-left: 2px;
+}
+.md-block ul:not(.md-task-list) > li,
+.md-list > li {
+  position: relative;
+  padding-left: 16px;
+  margin-top: 3px;
+}
+.md-block ul:not(.md-task-list) > li::before,
+.md-list > li::before {
+  content: "–";
+  position: absolute;
+  left: 2px;
+  color: var(--ink-3);
+}
+.md-block ol {
+  list-style: decimal;
+  padding-left: 22px;
+}
+.md-block ol > li {
+  margin-top: 3px;
+}
+.md-task-list > li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 3px;
+}
+.md-task-list input[type="checkbox"] {
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+
+.md-math-block {
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.md-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.md-table th, .md-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.md-table thead th {
+  background: var(--paper-sunken);
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.md-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.md-link {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent-soft-strong);
+}
+.md-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* KaTeX 与正文基线协调 */
+.katex {
+  font-size: 1.04em;
+}
+.katex-display {
+  margin: 6px 0;
+}

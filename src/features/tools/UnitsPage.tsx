@@ -1,9 +1,37 @@
-/** 单位换算页（plan §11 单位换算工具） */
+/** 单位换算：量纲族/单位选择 + 数值输入，量纲检查，温度值与温差语义区分。 */
 import { useMemo, useState } from 'react';
-import { convert, convertTemperature, families, unitsOfFamily, tryGetUnitDef, DimensionMismatchError, dimensionToString } from '../../core/quantity';
-import { Panel } from '../../components/ui';
+import {
+  convert, convertTemperature, dimensionToString, DimensionMismatchError,
+  displayUnit, families, tryGetUnitDef, unitsOfFamily, unitZh,
+} from '../../core/quantity';
+import { Button, Field, Notice, Panel } from '../../components/ui';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 import { useSettings } from '../../stores/settings';
-import { MarkdownInline } from '../../components/Markdown';
+
+const FAMILY_ZH: Record<string, string> = {
+  length: '长度', area: '面积', volume: '体积', mass: '质量', time: '时间', frequency: '频率',
+  temperature: '温度', force: '力', energy: '能量', power: '功率', current: '电流', voltage: '电压',
+  resistance: '电阻', charge: '电荷', capacitance: '电容', inductance: '电感', magnetic: '磁场',
+  pressure: '压强', density: '密度', thermal: '热学', electronic: '半导体/磁学', angle: '角度',
+};
+
+const EXAMPLES: string[] = [
+  '磁感应强度：$1\\ \\mathrm{mT} = 10\\ \\mathrm{Gs}$',
+  '密度：$1\\ \\mathrm{g}/\\mathrm{cm}^{3} = 1000\\ \\mathrm{kg}/\\mathrm{m}^{3}$',
+  '体积：$1\\ \\mathrm{L} = 1000\\ \\mathrm{mL} = 1000\\ \\mathrm{cm}^{3}$',
+  '电容：$1\\ \\mu\\mathrm{F} = 1000\\ \\mathrm{nF}$',
+  '霍尔系数：$1\\ \\mathrm{cm}^{3}/\\mathrm{C} = 10^{-6}\\ \\mathrm{m}^{3}/\\mathrm{C}$',
+  '温度值：$0\\ ^{\\circ}\\mathrm{C} = 273.15\\ \\mathrm{K}$；温差只缩放：$1\\ \\mathrm{K} = 1\\ ^{\\circ}\\mathrm{C}$',
+];
+
+type ConvResult = { value: number } | { error: string; mismatch: boolean };
+
+/** 显示用格式化（仅最终展示，不参与换算） */
+function formatValue(x: number): string {
+  const ax = Math.abs(x);
+  if (x !== 0 && (ax >= 1e12 || ax < 1e-6)) return x.toExponential(6);
+  return String(Number(x.toPrecision(10)));
+}
 
 export function UnitsPage() {
   const showDimensionCheck = useSettings((s) => s.showDimensionCheck);
@@ -15,17 +43,15 @@ export function UnitsPage() {
   const units = useMemo(() => unitsOfFamily(family), [family]);
   const isTemp = family === 'temperature';
 
-  const result = useMemo(() => {
+  const result = useMemo<ConvResult>(() => {
     const v = Number(value);
-    if (!Number.isFinite(v)) return { error: '非法数值' };
+    if (!Number.isFinite(v)) return { error: '非法数值：请输入一个数字', mismatch: false };
     try {
-      if (isTemp) {
-        return { value: convertTemperature(v, from, to), note: '温度（绝对值）换算，含 273.15 偏置' };
-      }
+      if (isTemp) return { value: convertTemperature(v, from, to) };
       return { value: convert(v, from, to) };
     } catch (err) {
-      if (err instanceof DimensionMismatchError) return { error: err.message };
-      return { error: (err as Error).message };
+      if (err instanceof DimensionMismatchError) return { error: err.message, mismatch: true };
+      return { error: (err as Error).message, mismatch: false };
     }
   }, [value, from, to, isTemp]);
 
@@ -33,14 +59,18 @@ export function UnitsPage() {
   const toDef = tryGetUnitDef(to);
 
   return (
-    <main className="page">
-      <h1><MarkdownInline>单位换算</MarkdownInline></h1>
-      <p className="muted"><MarkdownInline>维度检查：不相容的单位拒绝换算；摄氏温度区分温度值与温差语义</MarkdownInline></p>
-      <div style={{ maxWidth: 620 }}>
-        <Panel title="换算">
+    <>
+      <header className="page-head">
+        <h1 className="page-title"><MarkdownInline>单位换算</MarkdownInline></h1>
+        <p className="page-lead">
+          <MarkdownInline>{'内部计算统一 SI，换算前做量纲检查，不相容即拒绝；摄氏温度区分**温度值**（含偏置）与**温差**（只缩放）两种语义。'}</MarkdownInline>
+        </p>
+      </header>
+
+      <div className="stack-lg" style={{ maxWidth: 620 }}>
+        <Panel title="换算" sub="切换量纲族后，从/到下拉只列出该族单位">
           <div className="form-grid">
-            <div>
-              <div className="field-label"><MarkdownInline>单位族</MarkdownInline></div>
+            <Field label="量纲族">
               <select
                 className="select"
                 value={family}
@@ -52,67 +82,69 @@ export function UnitsPage() {
                 }}
               >
                 {families().filter((f) => f !== 'dimensionless' && f !== 'angle').map((f) => (
-                  <option key={f} value={f}>{familyZh(f)}</option>
+                  <option key={f} value={f}>{FAMILY_ZH[f] ?? f}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <div className="field-label"><MarkdownInline>数值</MarkdownInline></div>
+            </Field>
+            <Field label="数值">
               <input className="input" value={value} inputMode="decimal" onChange={(e) => setValue(e.target.value)} />
-            </div>
-            <div>
-              <div className="field-label"><MarkdownInline>从</MarkdownInline></div>
+            </Field>
+            <Field label="从">
               <select className="select" value={from} onChange={(e) => setFrom(e.target.value)}>
-                {units.map((u) => <option key={u} value={u}>{u}</option>)}
+                {units.map((u) => <option key={u} value={u}>{`${displayUnit(u)}（${unitZh(u)}）`}</option>)}
               </select>
-            </div>
-            <div>
-              <div className="field-label"><MarkdownInline>到</MarkdownInline></div>
+            </Field>
+            <Field label="到">
               <select className="select" value={to} onChange={(e) => setTo(e.target.value)}>
-                {units.map((u) => <option key={u} value={u}>{u}</option>)}
+                {units.map((u) => <option key={u} value={u}>{`${displayUnit(u)}（${unitZh(u)}）`}</option>)}
               </select>
+            </Field>
+          </div>
+          <div className="row-right" style={{ marginTop: 10 }}>
+            <Button size="sm" onClick={() => { setFrom(to); setTo(from); }}>交换</Button>
+          </div>
+
+          {'error' in result && result.mismatch ? (
+            <Notice variant="danger" title="量纲不相容">
+              <MarkdownInline>{result.error}</MarkdownInline>
+            </Notice>
+          ) : (
+            <div className="result-final" style={{ marginTop: 6 }}>
+              {'error' in result ? (
+                <span className="muted"><MarkdownInline>{result.error}</MarkdownInline></span>
+              ) : (
+                <>
+                  <span className="value">{value.trim() || '0'}</span>
+                  <span className="unit"><MarkdownInline>{displayUnit(from)}</MarkdownInline></span>
+                  <span className="unit">=</span>
+                  <span className="value">{formatValue(result.value)}</span>
+                  <span className="unit"><MarkdownInline>{displayUnit(to)}</MarkdownInline></span>
+                </>
+              )}
             </div>
-          </div>
-          <div className="result-final" style={{ marginTop: 14 }}>
-            {'error' in result ? (
-              <span style={{ color: 'var(--danger)' }}><MarkdownInline>{result.error}</MarkdownInline></span>
-            ) : (
-              <>
-                <span className="value"><MarkdownInline>{`${value} ${from}`}</MarkdownInline></span>
-                <span className="unit">=</span>
-                <span className="value"><MarkdownInline>{result.value.toPrecision(10)}</MarkdownInline></span>
-                <span className="unit"><MarkdownInline>{to}</MarkdownInline></span>
-              </>
-            )}
-          </div>
-          {'note' in result && result.note ? <div className="field-help"><MarkdownInline>{`${result.note}（温差换算只缩放不偏置）`}</MarkdownInline></div> : null}
-          {showDimensionCheck && fromDef && toDef && (
-            <div className="field-help" style={{ marginTop: 6 }}>
-              <MarkdownInline>{`量纲：${fromDef.zh}（${dimensionStr(fromDef)}）→ ${toDef.zh}（${dimensionStr(toDef)}）`}</MarkdownInline>
+          )}
+
+          {isTemp && !('error' in result) && (
+            <Notice variant="info">
+              <MarkdownInline>{'℃ ↔ K 的温度值换算**含 273.15 偏置**；**温差换算只缩放、不偏置**（温差数值 ℃ 与 K 相同）。'}</MarkdownInline>
+            </Notice>
+          )}
+
+          {showDimensionCheck && !('error' in result) && fromDef && toDef && (
+            <div className="small muted" style={{ marginTop: 8 }}>
+              <MarkdownInline>{`量纲：${fromDef.zh}（${dimensionToString(fromDef.dim)}）→ ${toDef.zh}（${dimensionToString(toDef.dim)}）`}</MarkdownInline>
             </div>
           )}
         </Panel>
-        <div className="notice notice-info">
-          <div className="n-body">
-            <MarkdownInline>内部计算统一 SI。单位换算往返不改变物理量（属性测试覆盖）。角度视为无量纲：`rad=1`、`deg=π/180`。</MarkdownInline>
-          </div>
-        </div>
+
+        <Panel title="常用换算示例">
+          <MarkdownList items={EXAMPLES} className="muted small" />
+        </Panel>
+
+        <Notice variant="info" title="换算语义">
+          <MarkdownBlock>{'内部计算统一 SI，换算前后物理量不变，往返换算不改变数值（属性测试覆盖）。角度视为无量纲：$1\\ \\mathrm{rad} = 1$，$1\\ \\mathrm{deg} = \\pi/180$。'}</MarkdownBlock>
+        </Notice>
       </div>
-    </main>
+    </>
   );
-}
-
-const FAMILY_ZH: Record<string, string> = {
-  length: '长度', area: '面积', volume: '体积', mass: '质量', time: '时间', frequency: '频率',
-  temperature: '温度', force: '力', energy: '能量', power: '功率', current: '电流', voltage: '电压',
-  resistance: '电阻', charge: '电荷', capacitance: '电容', inductance: '电感', magnetic: '磁场',
-  pressure: '压强', density: '密度', thermal: '热学', electronic: '半导体/磁学', angle: '角度',
-};
-
-function familyZh(f: string): string {
-  return FAMILY_ZH[f] ?? f;
-}
-
-function dimensionStr(def: NonNullable<ReturnType<typeof tryGetUnitDef>>): string {
-  return dimensionToString(def.dim);
 }

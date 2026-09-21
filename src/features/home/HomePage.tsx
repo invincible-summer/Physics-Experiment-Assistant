@@ -1,102 +1,158 @@
-/** 首页（plan §2.2）：任务导向 */
+/** 首页（plan §2.2）：任务导向入口 + 当前标准摘要 + 最近项目 */
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { listProjects, StoredProject } from '../../persistence/db';
 import { getExperiment } from '../../experiments';
 import { useSettings } from '../../stores/settings';
-import { Panel, Badge } from '../../components/ui';
+import { Panel, Notice, EmptyState, Button } from '../../components/ui';
 import { StandardProfileBadge } from '../../components/StandardProfileBadge';
 import { MarkdownInline, MarkdownList } from '../../components/Markdown';
+
+const QUICK_LINKS = [
+  {
+    to: '/experiments',
+    title: '实验工作台',
+    desc: '2026 A(1) 七个必做实验：从原始数据记录一路处理到可复核的结果表达。',
+  },
+  {
+    to: '/tools/statistics',
+    title: '数据处理工具',
+    desc: '统计、拟合、加权平均与不确定度传播，集中处理测量数据。',
+  },
+  {
+    to: '/formulas',
+    title: '公式工作台',
+    desc: '按物理量与单位填写数据求解目标量，保留公式来源与完整计算链。',
+  },
+  {
+    to: '/tools/calculator',
+    title: '科学计算器',
+    desc: '安全 AST 求值，支持角度/弧度切换与科学记数法，不执行任意脚本。',
+  },
+] as const;
 
 export function HomePage() {
   const navigate = useNavigate();
   const profile = useSettings((s) => s.activeProfile());
   const [recent, setRecent] = useState<StoredProject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    listProjects().then((all) => setRecent(all.slice(0, 5))).catch(() => setRecent([]));
+    let alive = true;
+    listProjects()
+      .then((all) => {
+        if (alive) setRecent(all.slice(0, 5));
+      })
+      .catch(() => {
+        if (alive) setLoadError(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   return (
-    <main className="page home-page">
+    <div className="stack-lg">
       <section className="home-hero">
-        <div className="hero-eyebrow"><MarkdownInline>PHYSICS EXPERIMENT WORKSPACE</MarkdownInline></div>
-        <h1><MarkdownInline>物理实验小助手</MarkdownInline></h1>
-        <p className="hero-lead"><MarkdownInline>从原始数据到规范结果表达：记录、计算、拟合、作图、不确定度与有效数字在同一个本地工作区完成。</MarkdownInline></p>
-        <p className="hero-note"><MarkdownInline>全部计算在本浏览器内运行，实验数据不会上传。</MarkdownInline></p>
-        <div className="hero-meta">
+        <div className="home-eyebrow"><MarkdownInline>大学物理实验 · 2026 A(1)</MarkdownInline></div>
+        <h1 className="home-title"><MarkdownInline>物理实验小助手</MarkdownInline></h1>
+        <p className="home-lead">
+          <MarkdownInline>从原始数据记录到规范结果表达：数据修正、派生量计算、拟合作图、不确定度与有效数字在同一个工作区完成，计算链与规则来源全程可追溯。</MarkdownInline>
+        </p>
+        <p className="muted small" style={{ marginTop: 8 }}>
+          <MarkdownInline>全部计算在本浏览器内运行，实验数据保存在本地，不会上传。</MarkdownInline>
+        </p>
+        <div className="row" style={{ marginTop: 12 }}>
           <StandardProfileBadge />
-          <Badge variant="default">规则可追溯</Badge>
-          <Badge variant="default">课程与 GB/T 隔离</Badge>
         </div>
         {profile.kind === 'custom' && (
-          <div className="notice notice-warning hero-warning">
-            <div className="n-body"><MarkdownInline>当前为自定义规则，不代表课程或 GB/T 标准。</MarkdownInline></div>
+          <div style={{ marginTop: 12 }}>
+            <Notice variant="warning" title="自定义标准配置生效中">
+              <MarkdownInline>当前为自定义规则组合，**不代表课程或 GB/T 标准的官方口径**；如需课程或标准模式，请到设置页切换。</MarkdownInline>
+            </Notice>
           </div>
         )}
       </section>
 
-      <section className="quick-grid" aria-label="常用入口">
-        <Link className="quick-card" to="/experiments">
-          <span className="q-kicker"><MarkdownInline>实验流程</MarkdownInline></span>
-          <span className="q-title"><MarkdownInline>新建 2026 A(1) 实验</MarkdownInline></span>
-          <span className="q-desc"><MarkdownInline>7 个必做实验，从原始记录一路处理到可复核结果。</MarkdownInline></span>
-          <span className="q-link"><MarkdownInline>进入实验工作台</MarkdownInline></span>
-        </Link>
-        <Link className="quick-card" to="/tools/statistics">
-          <span className="q-kicker"><MarkdownInline>数据工具</MarkdownInline></span>
-          <span className="q-title"><MarkdownInline>快速数据处理</MarkdownInline></span>
-          <span className="q-desc"><MarkdownInline>统计、拟合、加权平均与不确定度传播集中处理。</MarkdownInline></span>
-          <span className="q-link"><MarkdownInline>打开数据处理</MarkdownInline></span>
-        </Link>
-        <Link className="quick-card" to="/formulas">
-          <span className="q-kicker"><MarkdownInline>公式库</MarkdownInline></span>
-          <span className="q-title"><MarkdownInline>公式计算</MarkdownInline></span>
-          <span className="q-desc"><MarkdownInline>按物理量与单位填写数据，保留公式来源和计算链。</MarkdownInline></span>
-          <span className="q-link"><MarkdownInline>浏览公式</MarkdownInline></span>
-        </Link>
-        <Link className="quick-card" to="/tools/calculator">
-          <span className="q-kicker"><MarkdownInline>通用工具</MarkdownInline></span>
-          <span className="q-title"><MarkdownInline>科学计算器</MarkdownInline></span>
-          <span className="q-desc"><MarkdownInline>安全 AST 求值，支持角度与弧度模式，不执行任意脚本。</MarkdownInline></span>
-          <span className="q-link"><MarkdownInline>开始计算</MarkdownInline></span>
-        </Link>
-      </section>
+      <nav className="quick-grid" aria-label="常用入口">
+        {QUICK_LINKS.map((q) => (
+          <Link key={q.to} className="quick-card" to={q.to}>
+            <span className="quick-card-title"><MarkdownInline>{q.title}</MarkdownInline></span>
+            <span className="quick-card-desc"><MarkdownInline>{q.desc}</MarkdownInline></span>
+          </Link>
+        ))}
+      </nav>
 
       <div className="home-columns">
         <Panel
           title="当前标准规则摘要"
           sub={profile.name}
-          actions={<Link to="/settings" className="btn btn-sm"><MarkdownInline>切换标准</MarkdownInline></Link>}
+          actions={<Link to="/settings" className="btn btn-sm"><MarkdownInline allowLinks={false}>切换标准</MarkdownInline></Link>}
         >
-          <MarkdownList items={profile.rulesSummary.slice(0, 6)} className="rule-list" />
+          <MarkdownList items={profile.rulesSummary} />
         </Panel>
 
-        <Panel title="最近项目" actions={<Link to="/projects" className="btn btn-sm"><MarkdownInline>全部项目</MarkdownInline></Link>}>
-          {recent.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-title"><MarkdownInline>还没有项目</MarkdownInline></div>
-              <div className="small"><MarkdownInline>从“新建 2026 A(1) 实验”开始建立第一份记录。</MarkdownInline></div>
-            </div>
+        <Panel
+          title="最近项目"
+          actions={<Link to="/projects" className="btn btn-sm"><MarkdownInline allowLinks={false}>全部项目</MarkdownInline></Link>}
+        >
+          {loading ? (
+            <p className="muted small"><MarkdownInline>正在读取本地项目…</MarkdownInline></p>
+          ) : loadError ? (
+            <Notice variant="danger" title="读取失败">
+              <MarkdownInline>本地项目列表读取失败，请刷新页面重试；数据仍保存在浏览器 IndexedDB 中。</MarkdownInline>
+            </Notice>
+          ) : recent.length === 0 ? (
+            <EmptyState
+              title="还没有项目"
+              hint="到实验工作台新建第一份实验记录，数据只保存在本浏览器。"
+            >
+              <Button variant="primary" size="sm" onClick={() => navigate('/experiments')}>
+                去实验工作台新建
+              </Button>
+            </EmptyState>
           ) : (
-            <div className="table-scroll">
-              <table className="contrib-table recent-table">
-                <tbody>
-                  {recent.map((p) => {
-                    const exp = p.experimentId ? getExperiment(p.experimentId) : undefined;
-                    return (
-                      <tr key={p.id} className="clickable-row" onClick={() => navigate(`/project/${p.id}`)}>
-                        <td><strong><MarkdownInline>{p.title}</MarkdownInline></strong><div className="muted small"><MarkdownInline>{exp?.title ?? '通用'}</MarkdownInline></div></td>
-                        <td className="muted small nowrap">{new Date(p.updatedAt).toLocaleString('zh-CN')}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <table className="stat-table">
+              <tbody>
+                {recent.map((p) => {
+                  const exp = p.experimentId ? getExperiment(p.experimentId) : undefined;
+                  return (
+                    <tr
+                      key={p.id}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/project/${p.id}`)}
+                    >
+                      <td>
+                        <Link
+                          to={`/project/${p.id}`}
+                          className="md-link"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MarkdownInline allowLinks={false}>{p.title}</MarkdownInline>
+                        </Link>
+                        <div className="muted xs"><MarkdownInline>{exp?.title ?? '通用项目'}</MarkdownInline></div>
+                      </td>
+                      <td className="num nowrap">
+                        <MarkdownInline>{new Date(p.updatedAt).toLocaleString('zh-CN')}</MarkdownInline>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </Panel>
       </div>
-    </main>
+
+      <footer className="row small">
+        <Link className="md-link" to="/settings"><MarkdownInline>设置</MarkdownInline></Link>
+        <span className="faint">·</span>
+        <Link className="md-link" to="/sources"><MarkdownInline>关于与规则</MarkdownInline></Link>
+      </footer>
+    </div>
   );
 }
