@@ -164,6 +164,88 @@ const UNITS: Record<string, UnitDef> = Object.fromEntries(
     U('cm-3', { L: -3 }, 1e6, '每立方厘米', 'electronic'),
     // 角频率 / 角速度 rad/s（无量纲/时间）
     U('rad/s', { T: -1 }, 1, '弧度每秒', 'frequency'),
+    // 速度 m/s（plan §7.2 扩展）
+    U('m/s', { L: 1, T: -1 }, 1, '米每秒', 'velocity'),
+    U('km/h', { L: 1, T: -1 }, 1000 / 3600, '千米每小时', 'velocity'),
+    U('cm/s', { L: 1, T: -1 }, 0.01, '厘米每秒', 'velocity'),
+    // 加速度
+    U('m/s2', { L: 1, T: -2 }, 1, '米每二次方秒', 'acceleration'),
+    // 动量 / 冲量
+    U('kg·m/s', { L: 1, M: 1, T: -1 }, 1, '千克米每秒', 'momentum'),
+    U('N·s', { L: 1, M: 1, T: -1 }, 1, '牛秒', 'momentum'),
+    // 角动量
+    U('kg·m2/s', { L: 2, M: 1, T: -1 }, 1, '千克二次方米每秒', 'angular-momentum'),
+    // 力矩
+    U('N·m', { L: 2, M: 1, T: -2 }, 1, '牛米', 'torque'),
+    // 黏度
+    U('Pa·s', { L: -1, M: 1, T: -1 }, 1, '帕秒', 'viscosity'),
+    // 表面张力
+    U('N/m', { M: 1, T: -2 }, 1, '牛每米', 'surface-tension'),
+    // 物质的量（N 为物质的量维度）
+    U('mol', { N: 1 }, 1, '摩尔', 'amount'),
+    U('mmol', { N: 1 }, 1e-3, '毫摩尔', 'amount'),
+    // 摩尔质量 / 摩尔能量 / 摩尔热容
+    U('kg/mol', { M: 1, N: -1 }, 1, '千克每摩尔', 'molar'),
+    U('g/mol', { M: 1, N: -1 }, 1e-3, '克每摩尔', 'molar'),
+    U('J/mol', { L: 2, M: 1, T: -2, N: -1 }, 1, '焦每摩尔', 'molar'),
+    U('J/(mol·K)', { L: 2, M: 1, T: -2, N: -1, Θ: -1 }, 1, '焦每摩尔开', 'molar'),
+    // 比潜热 / 比能
+    U('J/kg', { L: 2, T: -2 }, 1, '焦每千克', 'specific-energy'),
+    // 强度
+    U('W/m2', { M: 1, T: -3 }, 1, '瓦每平方米', 'intensity'),
+    // 电场强度（V/m ≡ N/C）
+    U('V/m', { L: 1, M: 1, T: -3, I: -1 }, 1, '伏每米', 'electric-field'),
+    U('N/C', { L: 1, M: 1, T: -3, I: -1 }, 1, '牛每库', 'electric-field'),
+    // 介电常数
+    U('F/m', { L: -3, M: -1, T: 4, I: 2 }, 1, '法每米', 'permittivity'),
+    // 面电荷密度
+    U('C/m2', { L: -2, T: 1, I: 1 }, 1, '库每平方米', 'surface-charge'),
+    // 电阻率 / 电导 / 电导率
+    U('Ω·m', { L: 3, M: 1, T: -3, I: -2 }, 1, '欧姆米', 'resistivity'),
+    U('S', { L: -2, M: -1, T: 3, I: 2 }, 1, '西门子', 'conductance'),
+    U('S/m', { L: -3, M: -1, T: 3, I: 2 }, 1, '西门子每米', 'conductivity'),
+    // 磁通量
+    U('Wb', { L: 2, M: 1, T: -2, I: -1 }, 1, '韦伯', 'magnetic-flux'),
+    // 原子/核物理能量与质量
+    U('eV', { L: 2, M: 1, T: -2 }, 1.602176634e-19, '电子伏', 'energy'),
+    U('keV', { L: 2, M: 1, T: -2 }, 1.602176634e-16, '千电子伏', 'energy'),
+    U('MeV', { L: 2, M: 1, T: -2 }, 1.602176634e-13, '兆电子伏', 'energy'),
+    U('u', { M: 1 }, 1.66053906892e-27, '原子质量单位', 'mass'),
+    // 放射性活度（s⁻¹）
+    U('Bq', { T: -1 }, 1, '贝可勒尔', 'activity'),
+    // 转速
+    U('r/min', { T: -1 }, (2 * Math.PI) / 60, '转每分', 'frequency'),
+    // 角加速度
+    U('rad/s2', { T: -2 }, 1, '弧度每二次方秒', 'angular'),
+    // 转动惯量
+    U('kg·m2', { L: 2, M: 1 }, 1, '千克二次方米', 'moment-of-inertia'),
+    // 热容 / 熵
+    U('J/K', { L: 2, M: 1, T: -2, Θ: -1 }, 1, '焦每开', 'thermal'),
+    // 电偶极矩
+    U('C·m', { L: 1, T: 1, I: 1 }, 1, '库米', 'dipole'),
+    // 电通量
+    U('V·m', { L: 3, M: 1, T: -3, I: -1 }, 1, '伏米', 'flux'),
+    // 线电荷密度
+    U('C/m', { L: -1, T: 1, I: 1 }, 1, '库每米', 'line-charge'),
+    // 能量密度
+    U('J/m3', { L: -1, M: 1, T: -2 }, 1, '焦每立方米', 'energy-density'),
+    // 电流密度
+    U('A/m2', { L: -2, I: 1 }, 1, '安每平方米', 'current-density'),
+    // 电流变化率
+    U('A/s', { I: 1, T: -1 }, 1, '安每秒', 'current-rate'),
+    // 电压变化率
+    U('V/s', { L: 2, M: 1, T: -4, I: -1 }, 1, '伏每秒', 'voltage-rate'),
+    // 波数 / 衰变常数等倒数单位
+    U('m-1', { L: -1 }, 1, '每米', 'wavenumber'),
+    U('s-1', { T: -1 }, 1, '每秒', 'frequency'),
+    // 体积流量
+    U('m3/s', { L: 3, T: -1 }, 1, '立方米每秒', 'flow'),
+    // 温度变化率
+    U('K/s', { Θ: 1, T: -1 }, 1, '开每秒', 'thermal'),
+    // 线密度
+    U('kg/m', { L: -1, M: 1 }, 1, '千克每米', 'linear-density'),
+    // 作用量（普朗克常量、角动量同量纲但语义不同，单列）
+    U('J·s', { L: 2, M: 1, T: -1 }, 1, '焦秒', 'action'),
   ].map((u) => [u.id, u]),
 );
 
@@ -173,7 +255,6 @@ const ALIASES: Record<string, string> = {
   '°': 'deg', '°deg': 'deg', degree: 'deg', 度: 'deg',
   radian: 'rad', 弧度: 'rad',
   ohm: 'Ω', 'Ω': 'Ω', 'ohms': 'Ω',
-  u: 'μ', // 前缀化处理见 normalizeUnit
   'μV': 'μV', uv: 'μV', 'μA': 'μA', ua: 'μA', 'μF': 'μF', uf: 'μF',
   'μm': 'μm', um: 'μm', 'μs': 'μs', us: 'μs', 'μT': 'μT', ut: 'μT',
   'm²': 'm2', 'cm²': 'cm2', 'mm²': 'mm2', 'm³': 'm3', 'cm³': 'cm3',
@@ -181,7 +262,11 @@ const ALIASES: Record<string, string> = {
   'm²/(V·s)': 'm2/(V·s)', 'cm²/(V·s)': 'cm2/(V·s)',
   'W/(mK)': 'W/(m·K)', 'W/mK': 'W/(m·K)', 'W/(m.K)': 'W/(m·K)',
   'J/(kgK)': 'J/(kg·K)', 'J/kgK': 'J/(kg·K)',
-  'V·s': 'V*s_unused',
+  'm/s²': 'm/s2', 'km/h': 'km/h', 'W/m²': 'W/m2', 'C/m²': 'C/m2',
+  'J/(molK)': 'J/(mol·K)', 'J/molK': 'J/(mol·K)', 'Pa·s': 'Pa·s',
+  'N·m': 'N·m', 'N·s': 'N·s', 'Ω·m': 'Ω·m', 'S/m': 'S/m', 'F/m': 'F/m',
+  'kg·m/s': 'kg·m/s', 'kg·m2/s': 'kg·m2/s', ev: 'eV', kev: 'keV', mev: 'MeV',
+  原子质量单位: 'u', amu: 'u', 'V·s': 'V*s_unused',
   '': '',
   '1': '', 个: '', count: '',
 };

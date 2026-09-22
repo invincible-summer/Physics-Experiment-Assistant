@@ -1,45 +1,67 @@
-/** 公式工作台页面：搜索 + 分类 + 卡片列表 / 公式详情计算器（plan §8） */
-import { useMemo, useState } from 'react';
+/**
+ * 公式工作台页面（plan §8）：搜索 + domain/topic 二级过滤 + 分批渲染卡片 / 公式详情。
+ * 分批：默认首批 24 条，"加载更多"每批递增；改搜索词/分类时重置（避免一次挂载 200+ KaTeX）。
+ */
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  searchFormulas, getFormula, listFormulas, listCategories,
-  CATEGORY_LABELS, FormulaCategory,
+  searchFormulas, getFormula, listFormulas, listDomains, listTopics,
+  DOMAIN_LABELS, FormulaDomain, topicLabel,
 } from '../../formulas/registry';
-import { RESULT_UNITS, resultSymbolFromLatex } from '../../formulas/result-units';
 import { FormulaCard } from '../../components/FormulaCard';
 import { FormulaCalculator } from '../../components/FormulaCalculator';
 import { Badge, Button, EmptyState, FormulaBlock, Notice, Panel, SourceBadge, Tabs } from '../../components/ui';
 import { Icon } from '../../components/Icon';
-import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 import { Tex } from '../../components/katex';
 import { useSettings } from '../../stores/settings';
 
+const BATCH_SIZE = 24;
+
 export function FormulasPage() {
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<FormulaCategory | ''>('');
+  const [domain, setDomain] = useState<FormulaDomain | ''>('');
+  const [topic, setTopic] = useState('');
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const profileName = useSettings((s) => s.activeProfile().shortName);
 
   const trimmed = query.trim();
-  // 搜索与分类取交集：有关键词时在搜索结果上再按分类过滤
   const results = useMemo(() => {
-    const base = trimmed ? searchFormulas(trimmed) : listFormulas(category || undefined);
-    return trimmed && category ? base.filter((f) => f.category === category) : base;
-  }, [trimmed, category]);
+    // 搜索与 domain/topic 过滤取交集
+    const base = trimmed ? searchFormulas(trimmed) : listFormulas();
+    return base.filter((f) =>
+      (!domain || f.domain === domain) && (!topic || (domain && f.topic === topic)));
+  }, [trimmed, domain, topic]);
   const total = useMemo(() => listFormulas().length, []);
-  const tabs = useMemo(
+
+  const domainTabs = useMemo(
     () => [
       { id: '', label: '全部' },
-      ...listCategories().map((c) => ({ id: c as string, label: CATEGORY_LABELS[c] })),
+      ...listDomains().map((d) => ({ id: d as string, label: DOMAIN_LABELS[d] })),
     ],
     [],
   );
+  const topicTabs = useMemo(() => {
+    if (!domain) return [];
+    return [
+      { id: '', label: '全部专题' },
+      ...listTopics(domain).map((t) => ({ id: t.id, label: t.label })),
+    ];
+  }, [domain]);
+
+  // 过滤条件变化时重置分批
+  useEffect(() => {
+    setVisibleCount(BATCH_SIZE);
+  }, [trimmed, domain, topic]);
+
+  const shown = results.slice(0, visibleCount);
 
   return (
     <>
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>公式工作台</MarkdownInline></h1>
         <div className="page-lead">
-          <MarkdownBlock>{`当前标准：**${profileName}** · 每条公式标注来源状态，课程规则与通用扩展严格区分`}</MarkdownBlock>
+          <MarkdownBlock>{`大学物理主干公式库 · 当前标准：**${profileName}** · 每条公式标注来源状态，课程规则与通用扩展严格区分`}</MarkdownBlock>
         </div>
       </header>
       <div className="stack">
@@ -48,27 +70,47 @@ export function FormulasPage() {
           <input
             className="input"
             type="search"
-            placeholder="搜索公式名称、别名、符号…"
+            placeholder="搜索公式名称、别名、符号、领域…"
             aria-label="搜索公式"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
         <Tabs
-          tabs={tabs}
-          active={category}
-          onChange={(id) => setCategory(id === '' ? '' : (id as FormulaCategory))}
-          ariaLabel="公式分类"
+          tabs={domainTabs}
+          active={domain}
+          onChange={(id) => {
+            setDomain(id === '' ? '' : (id as FormulaDomain));
+            setTopic('');
+          }}
+          ariaLabel="公式学科域"
         />
+        {domain && topicTabs.length > 2 && (
+          <Tabs
+            tabs={topicTabs}
+            active={topic}
+            onChange={(id) => setTopic(id)}
+            ariaLabel={`细分专题（${DOMAIN_LABELS[domain]}）`}
+          />
+        )}
         {results.length === 0 ? (
-          <EmptyState title="没有匹配的公式" hint="试试更换关键词，或切换到「全部」分类" />
+          <EmptyState title="没有匹配的公式" hint="试试更换关键词，或切回「全部」域与专题" />
         ) : (
-          <div className="card-grid">
-            {results.map((f) => <FormulaCard key={f.id} formula={f} />)}
-          </div>
+          <>
+            <div className="card-grid">
+              {shown.map((f) => <FormulaCard key={f.id} formula={f} />)}
+            </div>
+            {visibleCount < results.length && (
+              <div className="row" style={{ justifyContent: 'center' }}>
+                <Button onClick={() => setVisibleCount((c) => c + BATCH_SIZE)}>
+                  {`加载更多（已显示 ${shown.length} / ${results.length}）`}
+                </Button>
+              </div>
+            )}
+          </>
         )}
         <div className="small muted">
-          <MarkdownBlock>{`共 ${results.length} 个公式（全库 ${total} 个）· 卡片角标为来源状态，含义见 [关于与规则](#/sources)`}</MarkdownBlock>
+          <MarkdownBlock>{`匹配 ${results.length} 个公式（全库 ${total} 个）· 卡片角标为来源状态，含义见 [关于与规则](#/sources)`}</MarkdownBlock>
         </div>
       </div>
     </>
@@ -116,7 +158,8 @@ export function FormulaDetailPage() {
           <h1 className="page-title"><MarkdownInline>{formula.title}</MarkdownInline></h1>
           <div className="row-nowrap">
             <SourceBadge provenance={formula.provenance} />
-            <Badge>{CATEGORY_LABELS[formula.category]}</Badge>
+            <Badge>{`${DOMAIN_LABELS[formula.domain]} · ${topicLabel(formula.domain, formula.topic)}`}</Badge>
+            {formula.kind === 'reference' && <Badge variant="info">参考公式</Badge>}
             <Button variant="ghost" size="sm" onClick={() => navigate('/formulas')}>返回列表</Button>
           </div>
         </div>
@@ -131,15 +174,25 @@ export function FormulaDetailPage() {
             <MarkdownBlock>{formula.conditions}</MarkdownBlock>
           </Notice>
         )}
-        <Panel title="计算" sub={`选择求解目标并填入数据；结果按 **${profileName}** 规则修约`}>
-          <FormulaCalculator
-            key={formula.id}
-            formula={formula}
-            resultSymbol={resultSymbolFromLatex(formula.latex)}
-            resultUnit={RESULT_UNITS[formula.id] ?? ''}
-            profileName={profileName}
-          />
-        </Panel>
+        {formula.kind === 'reference' ? (
+          <Panel title="参考公式" sub="重要关系式，不提供数值计算器">
+            <div className="stack">
+              <MarkdownBlock>{`该公式属于**参考公式**：以积分、微分方程或矢量形式表述的物理规律，不适合简化为填数求值的标量计算器，因此本页不显示数值输入表单（plan §5.3，不伪造不正确的标量表达式）。`}</MarkdownBlock>
+              <MarkdownBlock>{`可搜索本库对应的**可计算特例**：例如高斯定律 → 线/面/球电荷电场；法拉第定律 → 运动导体电动势；薛定谔方程 → 一维无限深势阱能级。`}</MarkdownBlock>
+              <div className="row">
+                <Button size="sm" onClick={() => navigate('/formulas')}>浏览相关可计算公式</Button>
+              </div>
+            </div>
+          </Panel>
+        ) : (
+          <Panel title="计算" sub={`选择求解目标并填入数据；结果按 **${profileName}** 规则修约`}>
+            <FormulaCalculator
+              key={formula.id}
+              formula={formula}
+              profileName={profileName}
+            />
+          </Panel>
+        )}
         <Panel title="变量与单位">
           <table className="stat-table">
             <thead>
@@ -176,6 +229,14 @@ export function FormulaDetailPage() {
         {examplesMd && (
           <Panel title="示例" sub="来自资料或定义的校验算例">
             <MarkdownBlock>{examplesMd}</MarkdownBlock>
+          </Panel>
+        )}
+        {(formula.constants ?? []).length > 0 && (
+          <Panel title="常数">
+            <MarkdownList
+              items={(formula.constants ?? []).map((c) =>
+                `${c.label} = ${fmtExample(c.value)}${c.unit ? ` ${c.unit}` : ''}${c.isExact ? '（精确值）' : '（测量值，含不确定度）'}`)}
+            />
           </Panel>
         )}
         <Panel title="来源">

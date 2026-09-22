@@ -4,7 +4,7 @@ import { parseTable, runFit, parseParams } from '../engine';
 import { makeResult } from '../../core/results';
 import { formatMeasurement } from '../../core/sigfig';
 import { StandardProfile } from '../../standards/types';
-import { G_STANDARD } from '../../formulas/types';
+import { COURSE_DEFAULT_G as G_STANDARD } from '../../physics/constants';
 
 const DOC = '2026秋物理实验A(1)教学资料';
 

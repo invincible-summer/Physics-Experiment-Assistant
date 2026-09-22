@@ -3,7 +3,7 @@ import { ExperimentDefinition, ExperimentState, ExperimentComputation, ComputedF
 import { parseTable, runFit, parseParams } from '../engine';
 import { makeResult } from '../../core/results';
 import { mean, sampleStd, tQuantile } from '../../core/statistics';
-import { E_CHARGE } from '../../formulas/types';
+import { ELEMENTARY_CHARGE as E_CHARGE } from '../../physics/constants';
 import { formatMeasurement } from '../../core/sigfig';
 import { StandardProfile } from '../../standards/types';
 

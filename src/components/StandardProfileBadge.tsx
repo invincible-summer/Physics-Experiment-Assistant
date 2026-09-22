@@ -3,17 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../stores/settings';
 import { Badge, BadgeVariant } from './ui';
 
-export function StandardProfileBadge({ clickable = true, compact = false }: {
+export function StandardProfileBadge({ clickable = true }: {
   clickable?: boolean;
-  /** 侧栏折叠态：只显示短名 */
-  compact?: boolean;
 }) {
   const profile = useSettings((s) => s.activeProfile());
   const navigate = useNavigate();
   const variant: BadgeVariant = profile.kind === 'course' ? 'accent' : profile.kind === 'gbt' ? 'info' : 'warning';
-  const label = compact
-    ? profile.shortName
-    : `**标准：**${profile.shortName}${profile.kind === 'custom' ? '（自定义，不代表课程或 GB/T）' : ''}`;
+  const label = `**标准：**${profile.shortName}${profile.kind === 'custom' ? '（自定义，不代表课程或 GB/T）' : ''}`;
   const el = <Badge variant={variant} title={profile.description}>{label}</Badge>;
   if (!clickable) return el;
   return (

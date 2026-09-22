@@ -70,18 +70,20 @@
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
     "Liberation Mono", "Noto Sans Mono CJK SC", monospace;
 
-  /* 字阶 */
-  --fs-xs: 12px;
-  --fs-sm: 13px;
-  --fs-md: 14.5px;
-  --fs-lg: 16px;
-  --fs-xl: 19px;
-  --fs-2xl: 24px;
-  --fs-3xl: 31px;
+  /* 字阶（rem：随 html 根字号 / data-font-scale 一起缩放；1rem = 15px 基准） */
+  --fs-3xs: 0.7rem;    /* 10.5px */
+  --fs-2xs: 0.7333rem; /* 11px */
+  --fs-xs: 0.8rem;     /* 12px */
+  --fs-sm: 0.8667rem;  /* 13px */
+  --fs-md: 0.9667rem;  /* 14.5px（正文） */
+  --fs-lg: 1.0667rem;  /* 16px */
+  --fs-xl: 1.2667rem;  /* 19px */
+  --fs-2xl: 1.6rem;    /* 24px */
+  --fs-3xl: 2.0667rem; /* 31px */
 
-  /* 结构尺寸 */
-  --sidebar-w: 248px;
-  --sidebar-w-collapsed: 76px;
+  /* 结构尺寸（固定 px：不随字号缩放） */
+  --sidebar-w: 216px;
+  --sidebar-w-collapsed: 60px;
   --topbar-h: 52px;
   --content-max: 1100px;
 

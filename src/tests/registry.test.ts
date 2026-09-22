@@ -1,6 +1,6 @@
-/** 公式注册表完整性测试（plan §20：全部条目落地并通过测试） */
+/** 公式注册表完整性测试（plan §10.4、§10.5：全部条目落地并通过测试） */
 import { describe, expect, it } from 'vitest';
-import { VISIBLE_FORMULAS, getFormula, searchFormulas } from '../formulas/registry';
+import { VISIBLE_FORMULAS, getFormula, searchFormulas, listFormulas, listDomains, listTopics, validateRegistry, FormulaDomain } from '../formulas/registry';
 import { compileExpression, evaluateExpression } from '../core/expression';
 
 /** plan.md §20 要求的最低条目 */
@@ -47,7 +47,11 @@ describe('公式注册表（plan §20 完整性）', () => {
     for (const f of VISIBLE_FORMULAS) {
       expect(f.provenance.status, `${f.id} provenance`).toBeTruthy();
       expect(f.latex.length, `${f.id} latex`).toBeGreaterThan(3);
-      const c = compileExpression(f.expression);
+      if (f.kind === 'reference') {
+        expect(f.conditions, `${f.id} reference 需有适用条件`).toBeTruthy();
+        continue;
+      }
+      const c = compileExpression(f.expression!);
       // customCompute 公式自行组织输入，表达式仅作符号表示
       if (!f.customCompute) {
         for (const v of f.variables) {
@@ -60,7 +64,7 @@ describe('公式注册表（plan §20 完整性）', () => {
     }
   });
 
-  it('示例数值验证', () => {
+  it('示例数值验证（相对容差：跨 40 个数量级的物理量不能用绝对小数位）', () => {
     let checked = 0;
     for (const f of VISIBLE_FORMULAS) {
       for (const ex of f.examples ?? []) {
@@ -69,8 +73,12 @@ describe('公式注册表（plan §20 完整性）', () => {
         Object.assign(scope, ex.inputs);
         const value = f.customCompute
           ? f.customCompute(scope)
-          : evaluateExpression(compileExpression(f.expression), scope);
-        expect(value).toBeCloseTo(ex.expect, 6);
+          : evaluateExpression(compileExpression(f.expression!), scope);
+        expect(
+          Math.abs(value - ex.expect) <= 1e-9 * Math.max(1, Math.abs(ex.expect)),
+          `${f.id}: computed ${value} expected ${ex.expect}`,
+        ).toBe(true);
+        expect(Number.isFinite(value), f.id).toBe(true);
         checked++;
       }
     }
@@ -90,6 +98,82 @@ describe('公式注册表（plan §20 完整性）', () => {
     expect(gbt.provenance.document).toContain('GB/T');
     const course = getFormula('course-type-b')!;
     expect(course.provenance.note).toContain('隔离');
+  });
+
+  it('静态校验（plan §10.4）：id/domain/topic/latex/expression/单位/来源全部合法', () => {
+    expect(validateRegistry()).toEqual([]);
+  });
+
+  it('旧课程公式 provenance 未被降级为 general', () => {
+    for (const id of ['hall-voltage', 'course-type-a', 'quasi-steady-lambda', 'damped-omega', 'thin-lens', 'michelson-wavelength']) {
+      const f = getFormula(id)!;
+      expect(['source-explicit', 'source-derived'], id).toContain(f.provenance.status);
+    }
+  });
+
+  it('reference 公式：无表达式、无求解目标、有适用条件', () => {
+    const refs = VISIBLE_FORMULAS.filter((f) => f.kind === 'reference');
+    expect(refs.length).toBeGreaterThanOrEqual(8);
+    for (const f of refs) {
+      expect(f.expression, f.id).toBeUndefined();
+      expect(f.solveFor, f.id).toEqual([]);
+      expect(f.conditions, f.id).toBeTruthy();
+    }
+  });
+});
+
+describe('大学物理主干覆盖（plan §6、§10.5）', () => {
+  const COVERAGE: ReadonlyArray<[FormulaDomain, string]> = [
+    // 6.1 测量
+    ['measurement', 'statistics'], ['measurement', 'uncertainty'], ['measurement', 'instruments'], ['measurement', 'data-processing'],
+    // 6.2–6.4 力学
+    ['mechanics', 'kinematics'], ['mechanics', 'dynamics'], ['mechanics', 'energy-momentum'],
+    ['mechanics', 'rotation'], ['mechanics', 'gravity'], ['mechanics', 'elasticity'],
+    ['mechanics', 'fluids'], ['mechanics', 'friction'],
+    // 6.6 热学
+    ['thermal', 'gas'], ['thermal', 'heat-transfer'], ['thermal', 'thermodynamics'],
+    // 6.7–6.10 电磁
+    ['electromagnetism', 'electrostatics'], ['electromagnetism', 'potential-capacitance'],
+    ['electromagnetism', 'circuits'], ['electromagnetism', 'magnetism'], ['electromagnetism', 'hall'],
+    ['electromagnetism', 'induction'], ['electromagnetism', 'ac'], ['electromagnetism', 'em-waves'],
+    // 6.5 振动波声
+    ['oscillations-waves', 'oscillations'], ['oscillations-waves', 'waves'],
+    ['oscillations-waves', 'sound'], ['oscillations-waves', 'oscilloscope'],
+    // 6.11–6.12 光学
+    ['optics', 'geometric'], ['optics', 'interference'], ['optics', 'diffraction'], ['optics', 'polarization'],
+    // 6.13–6.15 近代物理
+    ['modern', 'relativity'], ['modern', 'quantum'], ['modern', 'atomic'],
+    ['modern', 'solid'], ['modern', 'nuclear'],
+    // 标准
+    ['standards', 'gbt'],
+  ];
+
+  it('全部主干领域/专题都有公式', () => {
+    for (const [domain, topic] of COVERAGE) {
+      expect(listFormulas({ domain, topic }).length, `${domain}/${topic}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('全库规模处于计划区间（200–250 目标；150–300 为硬护栏）', () => {
+    expect(VISIBLE_FORMULAS.length).toBeGreaterThanOrEqual(150);
+    expect(VISIBLE_FORMULAS.length).toBeLessThanOrEqual(300);
+  });
+
+  it('一级 domain 数量保持约 8 个', () => {
+    expect(listDomains().length).toBeLessThanOrEqual(9);
+  });
+
+  it('plan §6 关键公式可按 id/标题/别名检索', () => {
+    const ids = [
+      'coulomb-law', 'gauss-law', 'ohms-law', 'electric-power', 'lorentz-force', 'straight-wire-field',
+      'faraday-law', 'series-rlc-impedance', 'ideal-gas-law', 'carnot-efficiency', 'bernoulli-equation',
+      'escape-velocity', 'double-slit-fringe-spacing', 'grating-equation', 'malus-law',
+      'lorentz-factor', 'photoelectric-effect', 'de-broglie-wavelength', 'radioactive-decay', 'half-life',
+    ];
+    for (const id of ids) expect(getFormula(id), id).toBeDefined();
+    expect(searchFormulas('牛顿第二定律').map((f) => f.id)).toContain('newton-second-law');
+    expect(searchFormulas('动量守恒').map((f) => f.id)).toContain('inelastic-collision-1d');
+    expect(searchFormulas('波义耳').length + searchFormulas('理想气体').length).toBeGreaterThan(0);
   });
 });
 

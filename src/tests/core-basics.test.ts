@@ -12,6 +12,7 @@ import { ols, olsThroughOrigin, weightedOLS } from '../core/regression';
 import {
   convert, convertTemperature, convertDeltaTemperature, dimensionOf, dimEqual,
   DimensionMismatchError, UnknownUnitError, toSIValue, fromSIValue, dimMul, dimensionToString,
+  tryGetUnitDef,
 } from '../core/quantity';
 
 describe('parseNumericText 有效数字元数据', () => {
@@ -187,6 +188,45 @@ describe('单位换算（AGENTS §17.1）', () => {
     const force = dimMul(dimensionOf('m'), dimMul(dimensionOf('kg'), { T: -2 }));
     expect(dimEqual(force, dimensionOf('N'))).toBe(true);
     expect(dimensionToString(force)).toContain('kg');
+  });
+});
+
+describe('大学物理扩展单位（plan §7.2、§10.6）', () => {
+  const NEW_UNITS = [
+    // [id, 同族另一单位]
+    'm/s', 'km/h', 'cm/s', 'm/s2',
+    'kg·m/s', 'N·s', 'kg·m2/s', 'N·m', 'kg·m2',
+    'Pa·s', 'N/m', 'kg/m', 'J/kg', 'J/K', 'J/mol', 'J/(mol·K)', 'g/mol', 'kg/mol', 'mol',
+    'W/m2', 'V/m', 'N/C', 'F/m', 'C/m2', 'C·m', 'V·m', 'C/m', 'J/m3',
+    'Ω·m', 'S', 'S/m', 'Wb', 'A/m2', 'A/s', 'V/s', 'm3/s', 'K/s', 'J·s',
+    'eV', 'keV', 'MeV', 'u', 'Bq', 'rad/s2', 'm-1', 's-1', 'r/min',
+  ] as const;
+
+  it('新单位全部可在单位系统中解析（注册即合法）', () => {
+    for (const id of NEW_UNITS) {
+      expect(tryGetUnitDef(id), id).toBeDefined();
+    }
+  });
+
+  it('换算往返不改变物理量（a→SI→a）', () => {
+    for (const id of NEW_UNITS) {
+      const v = 1.75;
+      const round = fromSIValue(toSIValue(v, id), id);
+      expect(Math.abs(round - v) <= 1e-9 * Math.max(1, Math.abs(v)), id).toBe(true);
+    }
+  });
+
+  it('代表性新单位数值正确', () => {
+    expect(convert(72, 'km/h', 'm/s')).toBeCloseTo(20, 12);
+    expect(convert(1, 'eV', 'J')).toBeCloseTo(1.602176634e-19, 30);
+    expect(convert(1, 'MeV', 'keV')).toBeCloseTo(1000, 12);
+    expect(convert(1, 'u', 'kg')).toBeCloseTo(1.66053906892e-27, 35);
+    expect(convert(1000, 'g/mol', 'kg/mol')).toBeCloseTo(1, 12);
+    expect(convert(1, 'r/min', 'rad/s')).toBeCloseTo((2 * Math.PI) / 60, 12);
+    expect(convert(1, 'Bq', 's-1')).toBeCloseTo(1, 12);
+    // 不相容仍拒绝
+    expect(() => convert(1, 'eV', 'kg')).toThrow(DimensionMismatchError);
+    expect(() => convert(1, 'm/s', 'm/s2')).toThrow(DimensionMismatchError);
   });
 });
 

@@ -1,14 +1,34 @@
 /**
- * PhysicsPlot — ECharts SVG 图表组件。
+ * PhysicsPlot — ECharts 图表组件（echarts/core 按需注册，plan §8.4）。
  * 轴名+单位+图名+数据点+拟合线区分；误差棒（custom series，不进图例，tooltip 显示 值 ± 误差）；
  * 多系列颜色+符号双编码（不以颜色为唯一编码）；SVG/PNG 白底导出 + 图中数据 CSV 导出；
  * 主题感知配色；ResizeObserver 自适应容器尺寸；PlotChecklist 图表规范检查。
+ * renderer：屏幕 SVG；PNG 导出需真实位图字节，保留 CanvasRenderer（导出用）。
  */
 import { useEffect, useMemo, useRef } from 'react';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import {
+  LineChart, ScatterChart, CustomChart,
+  LineSeriesOption, ScatterSeriesOption, CustomSeriesOption,
+} from 'echarts/charts';
+import {
+  GridComponent, TooltipComponent, LegendComponent, TitleComponent,
+  DataZoomComponent, GraphicComponent,
+} from 'echarts/components';
+import { SVGRenderer, CanvasRenderer } from 'echarts/renderers';
 import { Button, Notice, toast } from './ui';
 import { useSettings } from '../stores/settings';
 import { MarkdownBlock, MarkdownInline, MarkdownList } from './Markdown';
+
+echarts.use([
+  LineChart, ScatterChart, CustomChart,
+  GridComponent, TooltipComponent, LegendComponent, TitleComponent,
+  DataZoomComponent, GraphicComponent,
+  SVGRenderer, CanvasRenderer,
+]);
+
+type SeriesOption = LineSeriesOption | ScatterSeriesOption | CustomSeriesOption;
+type EChartsOption = echarts.EChartsCoreOption;
 
 export interface PlotSeries {
   name: string;
@@ -70,7 +90,7 @@ function seriesPalette(): string[] {
 
 export function PhysicsPlot(props: PhysicsPlotProps) {
   const elRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<echarts.ECharts | null>(null);
+  const chartRef = useRef<echarts.EChartsType | null>(null);
   const { title, xLabel, yLabel, series, height = 340, interactive = false, showGrid = true, annotations = [], xLog, yLog, hideLegend, xMin, xMax, yMin, yMax } = props;
   const theme = useSettings((s) => s.theme);
   const defaultPlotFormat = useSettings((s) => s.defaultPlotFormat);
@@ -82,7 +102,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
     const line = cssVar('--line', '#e5e2d7');
     const mono = cssVar('--mono', 'monospace');
     const palette = seriesPalette();
-    const realSeries: echarts.SeriesOption[] = [];
+    const realSeries: SeriesOption[] = [];
     /** 与 realSeries 对齐：每个 option 系列归属的输入系列（tooltip 反查误差用） */
     const seriesOwners: PlotSeries[] = [];
     series.forEach((s, idx) => {
@@ -127,7 +147,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
                 { type: 'line', shape: { x1: x[0] - 4, y1: yUp[1], x2: x[0] + 4, y2: yUp[1] }, style },
                 { type: 'line', shape: { x1: x[0] - 4, y1: yDn[1], x2: x[0] + 4, y2: yDn[1] }, style },
               ],
-            } as echarts.CustomSeriesRenderItemReturn;
+            };
           },
           data: xData.map((x, i) => [x, yData[i], s.yError?.[i] ?? 0]),
           silent: true,
@@ -152,7 +172,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
                 { type: 'line', shape: { x1: xL[0], y1: p[1] - 4, x2: xL[0], y2: p[1] + 4 }, style },
                 { type: 'line', shape: { x1: xR[0], y1: p[1] - 4, x2: xR[0], y2: p[1] + 4 }, style },
               ],
-            } as echarts.CustomSeriesRenderItemReturn;
+            };
           },
           data: xData.map((x, i) => [x, yData[i], s.xError?.[i] ?? 0]),
           silent: true,
@@ -259,7 +279,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
     const container = document.createElement('div');
     container.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none';
     document.body.appendChild(container);
-    let output: echarts.ECharts | undefined;
+    let output: echarts.EChartsType | undefined;
     try {
       output = echarts.init(container, undefined, { renderer: format === 'png' ? 'canvas' : 'svg', width: Math.max(720, live.getWidth()), height: Math.max(480, live.getHeight()) });
       const current = live.getOption();

@@ -28,8 +28,8 @@ test('function presets, range errors, focus mode and persistent draft', async ({
 
 test('dark-theme exports are genuine PNG and printable SVG', async ({ page }) => {
   await page.goto('/#/tools/plotter');
-  await page.getByRole('button', { name: /主题：/ }).click();
-  await page.getByRole('button', { name: /主题：/ }).click();
+  await page.getByRole('button', { name: /当前主题/ }).click();
+  await page.getByRole('button', { name: /当前主题/ }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('button', { name: '函数曲线', exact: true }).click();
   await page.getByRole('button', { name: '二次函数', exact: true }).click();

@@ -42,12 +42,15 @@ interface FieldSpec {
   quantityKind?: 'temperature-difference';
 }
 
-export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileName }: {
-  formula: FormulaDefinition; resultSymbol: string; resultUnit: string; profileName: string;
+export function FormulaCalculator({ formula, profileName }: {
+  formula: FormulaDefinition; profileName: string;
 }) {
   const profile = useSettings((s) => s.activeProfile());
   const profileKey = JSON.stringify(profile);
   const mathStyle = useSettings((s) => s.mathStyle);
+  // 主结果元数据来自 formula.result（plan §5.2：单一数据源，不再查并行映射）
+  const resultSymbol = formula.result?.symbol ?? '';
+  const resultUnit = formula.result?.unit ?? '';
   const [draft, setDraft] = useToolDraft(`formula.${formula.id}.v${formula.version}`,
     initialFormulaDraft(formula), raw => restoreFormulaDraft(raw, formula));
   const { target, vars, rows } = draft;
@@ -132,6 +135,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       labelTex: resultSymbol || varSymbolTex(n),
       label: '原式结果量（现作输入）',
       unit: resultUnit,
+      quantityKind: formula.result?.quantityKind,
       note: undefined,
       isTarget: false,
       defaultBadge: undefined,
@@ -205,7 +209,8 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       let expressionSource: string;
       let symbol: string;
       if (targetVar === null) {
-        expressionSource = formula.expression;
+        // 仅 computable 公式渲染计算器，expression 必存在
+        expressionSource = formula.expression!;
         symbol = resultSymbol || formula.id;
       } else {
         // blocked 已排除无解式目标，此处必有显式解

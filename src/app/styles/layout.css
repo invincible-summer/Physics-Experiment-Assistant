@@ -48,42 +48,37 @@
 .is-collapsed .app-sidebar {
   width: var(--sidebar-w-collapsed);
 }
-/* 紧凑导航仍保留可读标签 */
+/* 紧凑导航仍保留可读标签；品牌标记与折叠控件纵向居中堆叠（均为图标，无文字行） */
 .is-collapsed .sidebar-brand-row {
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 8px 10px;
+  gap: 6px;
+  padding: 12px 6px 8px;
 }
 .is-collapsed .sidebar-brand-row .brand {
   flex: none;
-}
-.is-collapsed .sidebar-toggle {
-  padding: 4px;
-  min-width: 26px;
-  min-height: 26px;
   justify-content: center;
 }
 
 .sidebar-brand-row {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-  padding: 18px 16px 12px;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px 10px;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   min-width: 0;
   flex: 1;
 }
 .brand-mark {
   flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   background: linear-gradient(160deg, var(--accent-hi), var(--accent-strong));
   color: var(--on-accent);
   display: flex;
@@ -101,33 +96,33 @@
 .brand-name {
   font-family: var(--serif);
   font-weight: 650;
-  font-size: 15.5px;
+  font-size: 1.0333rem;
   letter-spacing: 0.02em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .brand-sub {
-  font-size: 10.5px;
+  font-size: var(--fs-3xs);
   color: var(--ink-3);
   letter-spacing: 0.04em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* 低视觉权重折叠控件：默认无底/无边框，仅图标；文字只进 title/aria-label（plan §3.2） */
 .sidebar-toggle {
   flex: none;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: var(--fs-xs);
+  justify-content: center;
   color: var(--ink-3);
-  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  background: var(--paper-raised);
 }
-.sidebar-toggle:hover {
+.sidebar-toggle:hover,
+.sidebar-toggle:focus-visible {
   color: var(--ink-1);
-  border-color: var(--line-strong);
+  background: var(--paper-hover);
 }
 
 .sidebar-content {
@@ -140,7 +135,7 @@
   margin-top: 6px;
 }
 .nav-caption {
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   letter-spacing: 0.14em;
   color: var(--ink-3);
   padding: 10px 10px 4px;
@@ -161,7 +156,7 @@
   border-radius: 8px;
   padding: 7px 10px;
   color: var(--ink-2);
-  font-size: 14px;
+  font-size: 0.9333rem;
   line-height: 1.4;
   white-space: nowrap;
   border-left: 2px solid transparent;
@@ -193,7 +188,7 @@
   padding: 9px 4px;
   gap: 4px;
   flex-direction: column;
-  font-size: 12px;
+  font-size: var(--fs-xs);
 }
 .is-collapsed .nav-item .icon {
   width: 19px;
@@ -205,7 +200,7 @@
 
 .sidebar-footer {
   border-top: 1px solid var(--line);
-  padding: 10px 12px 12px;
+  padding: 8px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -213,13 +208,35 @@
 }
 .is-collapsed .sidebar-footer {
   align-items: center;
-  padding: 10px 6px 12px;
+  padding: 8px 6px 12px;
+}
+/* footer 轻量工具区：齿轮设置入口 + 主题切换（不再承担标准徽章角色，plan §3.3） */
+.sidebar-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.is-collapsed .sidebar-tools {
+  flex-direction: column;
+  align-items: center;
+}
+.sidebar-tool-btn {
+  flex: 1;
+  min-height: 30px;
+}
+.is-collapsed .sidebar-tool-btn {
+  flex: none;
+  width: 34px;
+  min-width: 34px;
+  padding: 4px;
+  justify-content: center;
 }
 .sidebar-theme {
   color: var(--ink-2);
 }
 .sidebar-privacy {
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   color: var(--ink-3);
 }
 
@@ -337,7 +354,7 @@
   padding: 7px 10px;
   border-radius: 8px;
   color: var(--ink-2);
-  font-size: 13.5px;
+  font-size: 0.9rem;
   line-height: 1.45;
   border-left: 2px solid transparent;
   position: relative;
@@ -363,7 +380,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-family: var(--mono);
   color: var(--ink-3);
 }
@@ -499,14 +516,14 @@ li.step-attention .step-num {
 }
 .flow-step .fs-num {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   color: var(--accent-ink);
   font-weight: 650;
   letter-spacing: 0.1em;
 }
 .flow-step .fs-title {
   font-weight: 650;
-  font-size: 14px;
+  font-size: 0.9333rem;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -629,7 +646,7 @@ li.step-attention .step-num {
 }
 .proj-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.9333rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -730,7 +747,7 @@ li.step-attention .step-num {
     gap: 3px;
     min-height: 52px;
     padding: 6px 2px;
-    font-size: 10.5px;
+    font-size: var(--fs-3xs);
     color: var(--ink-2);
     box-shadow: inset 0 2px 0 transparent;
   }
@@ -833,14 +850,9 @@ li.step-attention .step-num {
 .plot-editor-hidden { display: none; }
 .plot-workspace .field .row > .input { flex: 1; min-width: 0; width: 0; }
 
-.sidebar-profile { min-width: 0; width: 100%; }
-.sidebar-profile .badge { white-space: normal; line-height: 1.6; }
-.is-collapsed .sidebar-profile .badge { font-size: 10px; padding: 4px; }
-.sidebar-toggle { min-height: 30px; }
+.sidebar-toggle { min-height: 28px; min-width: 28px; }
 .sidebar-footer { flex-shrink: 0; }
 .sidebar-content { min-height: 0; scrollbar-width: thin; }
-.is-collapsed .sidebar-theme { flex-direction: column; gap: 3px; padding: 4px; font-size: 11px; }
-.sidebar-profile .badge { overflow-wrap: anywhere; }
 
 /* Grid children must shrink before long formula blocks start scrolling. */
 .tool-layout > * { min-width: 0; }

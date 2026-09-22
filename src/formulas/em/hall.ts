@@ -1,0 +1,138 @@
+/** 电磁学 · 霍尔效应与磁阻（domain: electromagnetism / topic: hall）— 课程实验公式 */
+import { F, FormulaDefinition } from '../types';
+import { ELEMENTARY_CHARGE } from '../../physics/constants';
+
+const DOC = '2026秋物理实验A(1)教学资料';
+
+export const HALL_FORMULAS: FormulaDefinition[] = [
+  F({
+    id: 'hall-voltage',
+    title: '霍尔电压',
+    domain: 'electromagnetism',
+    topic: 'hall',
+    tags: ['霍尔', '电压'],
+    latex: 'U_H = K_H\\, I\\, B = \\frac{R_H}{d}\\, I\\, B',
+    expression: 'KH * I * B',
+    result: { symbol: 'U_H', label: '霍尔电压', unit: 'V' },
+    variables: [
+      { name: 'KH', label: '霍尔灵敏度 KH', unit: 'm2/C', note: 'SI：V/(A·T) ≡ m²/C；KH = RH/d' },
+      { name: 'I', label: '工作电流 I', unit: 'A' },
+      { name: 'B', label: '磁感应强度 B', unit: 'T' },
+    ],
+    solveFor: ['B', 'I', 'KH'],
+    solutions: { B: 'UH / (KH * I)', I: 'UH / (KH * B)', KH: 'UH / (I * B)' },
+    provenance: { status: 'source-explicit', document: DOC, section: '霍尔效应及磁电阻测量' },
+    uncertainty: { propagatable: true },
+    examples: [
+      { title: 'KH=2、I=0.015 A、B=0.5 T', inputs: { KH: 2, I: 0.015, B: 0.5 }, expect: 0.015 },
+    ],
+  }),
+  F({
+    id: 'hall-four-direction-combination',
+    title: '霍尔电压四换向组合',
+    aliases: ['四方向法', '换向消除'],
+    domain: 'electromagnetism',
+    topic: 'hall',
+    tags: ['霍尔', '系统误差消除'],
+    latex: 'U_H = \\frac{U_1 - U_2 + U_3 - U_4}{4}',
+    expression: '(U1 - U2 + U3 - U4) / 4',
+    result: { symbol: 'U_H', label: '霍尔电压（组合消除后）', unit: 'V' },
+    variables: [
+      { name: 'U1', label: '(+B, +I) 电压 U1', unit: 'V' },
+      { name: 'U2', label: '(+B, −I) 电压 U2', unit: 'V' },
+      { name: 'U3', label: '(−B, −I) 电压 U3', unit: 'V' },
+      { name: 'U4', label: '(−B, +I) 电压 U4', unit: 'V' },
+    ],
+    solveFor: [],
+    provenance: { status: 'source-explicit', document: DOC, section: '霍尔效应及磁电阻测量', note: '消除不等位电势与热电效应等附加电压' },
+    examples: [
+      { title: '理想霍尔电压 10 mV 无附加项', inputs: { U1: 0.010, U2: -0.010, U3: 0.010, U4: -0.010 }, expect: 0.01 },
+    ],
+  }),
+  F({
+    id: 'hall-coefficient',
+    title: '霍尔系数',
+    domain: 'electromagnetism',
+    topic: 'hall',
+    tags: ['霍尔'],
+    latex: 'R_H = \\frac{U_H\\, d}{I\\, B}',
+    expression: 'UH * d / (I * B)',
+    result: { symbol: 'R_H', label: '霍尔系数', unit: 'm3/C' },
+    variables: [
+      { name: 'UH', label: '霍尔电压 UH', unit: 'V' },
+      { name: 'd', label: '霍尔片厚度 d', unit: 'm' },
+      { name: 'I', label: '工作电流 I', unit: 'A' },
+      { name: 'B', label: '磁感应强度 B', unit: 'T' },
+    ],
+    solveFor: ['B', 'd', 'I'],
+    solutions: { B: 'UH * d / (I * RH)', d: 'RH * I * B / UH', I: 'UH * d / (RH * B)' },
+    provenance: { status: 'source-explicit', document: DOC, section: '霍尔效应及磁电阻测量' },
+    uncertainty: { propagatable: true },
+    examples: [
+      { title: 'UH=10 mV、d=0.1 mm、I=10 mA、B=0.5 T', inputs: { UH: 0.01, d: 1e-4, I: 0.01, B: 0.5 }, expect: 2e-4 },
+    ],
+  }),
+  F({
+    id: 'hall-sensitivity',
+    title: '霍尔灵敏度',
+    domain: 'electromagnetism',
+    topic: 'hall',
+    tags: ['霍尔'],
+    latex: 'K_H = \\frac{R_H}{d}',
+    expression: 'RH / d',
+    result: { symbol: 'K_H', label: '霍尔灵敏度', unit: 'm2/C' },
+    variables: [
+      { name: 'RH', label: '霍尔系数 RH', unit: 'm3/C' },
+      { name: 'd', label: '霍尔片厚度 d', unit: 'm' },
+    ],
+    solveFor: ['RH', 'd'],
+    solutions: { RH: 'KH * d', d: 'RH / KH' },
+    provenance: { status: 'source-explicit', document: DOC, section: '霍尔效应及磁电阻测量' },
+    examples: [
+      { title: 'RH=2e-4、d=1e-4', inputs: { RH: 2e-4, d: 1e-4 }, expect: 2 },
+    ],
+  }),
+  F({
+    id: 'carrier-density',
+    title: '载流子浓度',
+    domain: 'electromagnetism',
+    topic: 'hall',
+    tags: ['霍尔', '半导体'],
+    latex: 'n = \\frac{1}{|e|\\, R_H}',
+    expression: '1 / (qe * RH)',
+    constants: [{ name: 'qe', label: '元电荷 e（exact）', value: ELEMENTARY_CHARGE, isExact: true, unit: 'C' }],
+    result: { symbol: 'n', label: '载流子浓度', unit: 'm-3' },
+    variables: [{ name: 'RH', label: '霍尔系数 RH', unit: 'm3/C' }],
+    solveFor: [],
+    provenance: {
+      status: 'source-explicit',
+      document: DOC,
+      section: '霍尔效应及磁电阻测量',
+      note: '课程实验近似取霍尔因子 A≈1；载流子类型由 RH/UH 符号与讲义规定方向判断',
+    },
+    examples: [
+      { title: 'RH=2e-4 m³/C', inputs: { RH: 2e-4 }, expect: 1 / (ELEMENTARY_CHARGE * 2e-4) },
+    ],
+  }),
+  F({
+    id: 'magnetoresistance',
+    title: '磁阻相对变化',
+    domain: 'electromagnetism',
+    topic: 'hall',
+    tags: ['磁阻'],
+    latex: '\\frac{\\Delta R}{R(0)} = \\frac{R(B) - R(0)}{R(0)},\\quad R(B) = \\frac{U_{AC}}{I_{AC}}',
+    expression: '(RB - R0) / R0',
+    result: { symbol: '\\Delta R / R(0)', label: '磁阻相对变化', unit: '' },
+    variables: [
+      { name: 'RB', label: '磁场下的电阻 R(B) = UAC/IAC', unit: 'Ω' },
+      { name: 'R0', label: '零场电阻 R(0)', unit: 'Ω' },
+    ],
+    solveFor: ['RB'],
+    solutions: { RB: 'R0 * (1 + MR)' },
+    provenance: { status: 'source-explicit', document: DOC, section: '霍尔效应及磁电阻测量' },
+    conditions: '弱磁场下 ΔR/R(0) ∝ B²；强磁场下 ∝ B',
+    examples: [
+      { title: 'R0=100 Ω、RB=101 Ω', inputs: { RB: 101, R0: 100 }, expect: 0.01 },
+    ],
+  }),
+];

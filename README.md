@@ -16,11 +16,11 @@
 ```bash
 npm install
 npm run dev        # 开发
-npm test           # 单元 + golden + 属性测试（177 个）
+npm test           # 单元 + golden + 属性测试（220+ 个）
 npm run test:coverage
 npm run typecheck
 npm run build      # 产线构建（GitHub Pages 子路径 base）
-npm run e2e        # Playwright 冒烟（10 用例，需 npx playwright install chromium）
+npm run e2e        # Playwright（30+ 用例，需 npx playwright install chromium）
 ```
 
 ## 标准配置（严格隔离）
@@ -64,9 +64,18 @@ npm run e2e        # Playwright 冒烟（10 用例，需 npx playwright install 
 - 公式聚合输入：平均值、标准偏差、相关系数等公式可直接粘贴原始数据列自动求和/派生，不必手工先算 Σx
 - 实验工作台：步骤导航带完成度状态（done/todo/attention）、顶栏进度、步骤翻页、结果检查器（结果/警告计数、审计日志）、计算失败保留上次成功结果
 
+## 公式工作台
+
+大学物理主干公式库：测量与数据处理、力学（运动学/动力学/能量动量/转动/引力/弹性/流体/摩擦）、热学（气体动理论/量热传热/热力学）、电磁学（静电/电路/磁场/霍尔/感应/交流/电磁波）、振动与波、光学（几何/干涉/衍射/偏振）、近代物理（相对论/量子/原子/固体/核）、测量标准（GB/T 27418）。
+
+- 每条公式：`domain + topic` 二级分类、中英文搜索、变量与单位、适用条件、来源状态（资料原式 / 由资料推导 / 通用扩展）、校验算例
+- 可计算公式提供单位换算 + 不确定度偏导传播 + 可复制的完整过程；重要积分/微分方程形式以「参考公式」展示符号与适用条件，不硬凑数值计算器
+- 公式库路由级懒加载，列表分批渲染（首批 24 条），不拖慢首页
+- 物理常数集中管理（`src/physics/constants.ts`）：SI 定义常数（c/h/e/k_B/N_A 及派生 ħ、R）标记 exact；CODATA 2022 推荐值与课程默认 g=9.8、标准重力 g_n 区分
+
 ## 目录结构
 
-见 `AGENTS.md` §16 与 `plan.md`。核心：`src/core`（numeric/quantity/sigfig/statistics/regression/uncertainty/expression/graph）、`src/standards`（四 profile）、`src/formulas`（70+ 版本化公式注册表）、`src/experiments/tsinghua-a1-2026`（7 实验）、`src/persistence`（Dexie + schemaVersion 迁移）。
+见 `AGENTS.md` §16 与 `plan.md`。核心：`src/core`（numeric/quantity/sigfig/statistics/regression/uncertainty/expression/graph）、`src/standards`（四 profile）、`src/physics`（物理常数）、`src/formulas`（按学科域分目录的版本化公式注册表）、`src/experiments/tsinghua-a1-2026`（7 实验）、`src/persistence`（Dexie + schemaVersion 迁移）。
 
 ## 学术诚信
 
@@ -74,4 +83,4 @@ npm run e2e        # Playwright 冒烟（10 用例，需 npx playwright install 
 
 ## 部署
 
-GitHub Actions（`.github/workflows/deploy.yml`）：typecheck → unit tests → build → Pages 部署。路由使用 HashRouter，`vite.config.ts` 的 `base` 按仓库名配置（可用 `VITE_BASE` 覆盖）。
+GitHub Actions（`.github/workflows/deploy.yml`）：typecheck → unit tests → build → Chromium Playwright e2e → Pages 部署。路由使用 HashRouter，`vite.config.ts` 的 `base` 按仓库名配置（可用 `VITE_BASE` 覆盖）。

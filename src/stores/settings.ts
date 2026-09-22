@@ -11,6 +11,8 @@ import {
 
 export type MathStyle = 'dollar' | 'parens';
 export type UnitOutput = 'auto' | 'si' | 'follow-input';
+/** 应用内界面字号档位（相对默认 15px 根字号；plan §3.4） */
+export type FontScale = 0.9 | 1 | 1.1 | 1.25 | 1.4;
 
 export interface Preferences {
   standardProfileId: string;
@@ -32,6 +34,8 @@ export interface Preferences {
   expertMode: boolean;
   /** 主题：跟随系统 / 浅色 / 深色 */
   theme: 'system' | 'light' | 'dark';
+  /** 界面字号（持久化；同步为 <html data-font-scale>） */
+  fontScale: FontScale;
   /** 桌面主边栏折叠状态；移动端仍使用底栏。 */
   sidebarCollapsed: boolean;
   autosave: boolean;
@@ -64,6 +68,7 @@ const defaults: Preferences = {
   showDiagnostics: true,
   expertMode: false,
   theme: 'system',
+  fontScale: 1,
   sidebarCollapsed: false,
   autosave: true,
 };

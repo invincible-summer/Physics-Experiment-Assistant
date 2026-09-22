@@ -87,6 +87,8 @@ export function evaluateExpression(
     }
   }
   const fullScope: Record<string, unknown> = { ...ALLOWED_CONSTANTS };
+  // mathjs 的自然对数是 log()；为公式书写习惯补 ln 别名
+  fullScope.ln = Math.log;
   if (opts?.angleMode === 'deg') {
     // 度模式：通过 scope 覆盖三角函数（mathjs scope 优先于内建）
     const d = Math.PI / 180;

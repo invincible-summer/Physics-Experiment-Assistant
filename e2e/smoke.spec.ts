@@ -9,6 +9,20 @@ test('首页加载并显示任务导向入口', async ({ page }) => {
   await expect(page.getByText('最近项目')).toBeVisible();
 });
 
+test('首页课程规则摘要数学由 KaTeX/MathML 渲染（plan §10.3）', async ({ page }) => {
+  await page.goto('/');
+  const panel = page.locator('.panel', { hasText: '当前标准规则摘要' });
+  await expect(panel).toBeVisible();
+  // 规则摘要中的公式进入 KaTeX 节点并保留 MathML，而非 Unicode 纯文本
+  await expect(panel.locator('.katex').first()).toBeVisible();
+  expect(await panel.locator('math').count()).toBeGreaterThan(3);
+  // 课程关键公式渲染为真实数学节点（KaTeX 输出含 Unicode 数学字形的 MathML 文本）
+  const katexText = await panel.locator('.katex').allInnerTexts();
+  const joined = katexText.join('\n');
+  expect(joined).toContain('0.95');
+  expect(joined).toContain('Δ');
+});
+
 test('实验列表显示 7 个实验', async ({ page }) => {
   await page.goto('/#/experiments');
   await expect(page.getByRole('heading', { name: '实验工作台' })).toBeVisible();
@@ -116,13 +130,13 @@ test('绘图工作台：表达式出图 + 轴范围 + 导出按钮', async ({ pa
 
 test('主题三态切换作用于文档根', async ({ page }) => {
   await page.goto('/');
-  const themeBtn = page.getByRole('button', { name: /主题：/ });
+  const themeBtn = page.getByRole('button', { name: /当前主题/ });
   await expect(themeBtn).toBeVisible();
   // system → light → dark（测试环境 prefers-color-scheme 默认 light）
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await themeBtn.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(page.getByRole('button', { name: /主题：浅色/ })).toBeVisible();
-  await page.getByRole('button', { name: /主题：浅色/ }).click();
+  await expect(page.getByRole('button', { name: /当前主题浅色/ })).toBeVisible();
+  await page.getByRole('button', { name: /当前主题浅色/ }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });

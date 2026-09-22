@@ -6,10 +6,16 @@
   box-sizing: border-box;
 }
 
+/* 根字号：默认 15px；应用内字号偏好经 <html data-font-scale>（倍数值）缩放（plan §3.4） */
 html {
   font-size: 15px;
   -webkit-text-size-adjust: 100%;
 }
+html[data-font-scale="0.9"] { font-size: 13.5px; }
+html[data-font-scale="1"] { font-size: 15px; }
+html[data-font-scale="1.1"] { font-size: 16.5px; }
+html[data-font-scale="1.25"] { font-size: 18.75px; }
+html[data-font-scale="1.4"] { font-size: 21px; }
 
 body {
   margin: 0;
@@ -176,7 +182,7 @@ input[inputmode="decimal"],
 .stat-num {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 22px;
+  font-size: 1.4667rem;
   font-weight: 650;
   letter-spacing: 0.01em;
   line-height: 1.25;

@@ -172,7 +172,7 @@ interface NumericDatum {
 
 ## 8. 公式系统约束
 
-公式不得散落在 React JSX 中。所有公式由版本化注册表驱动。
+公式不得散落在 React JSX 中。所有公式由版本化注册表驱动。分类采用「domain + topic」二级结构（一级学科域固定约 8 个：measurement/mechanics/thermal/electromagnetism/oscillations-waves/optics/modern/standards；二级专题在 `DOMAIN_TOPICS` 登记）。公式分两类：`computable`（可填数求值，必须有 expression、result 元数据与至少 1 个校验算例）与 `reference`（重要积分/微分方程形式，只展示符号与适用条件，禁止硬凑标量表达式）。
 
 ```ts
 interface FormulaDefinition {
@@ -180,18 +180,33 @@ interface FormulaDefinition {
   version: number;
   title: string;
   aliases: string[];
-  category: string;
+  domain: FormulaDomain;           // 一级学科域
+  topic: string;                   // DOMAIN_TOPICS 登记过的二级专题
+  tags?: string[];                 // 搜索辅助词
+  kind: 'computable' | 'reference';
   latex: string;
-  expression: string;             // 解析后的安全表达式来源
+  expression?: string;             // computable 必填；reference 禁止
+  result?: {                       // 主结果显式元数据（单一数据源，禁止并行映射）
+    symbol: string;                // LaTeX
+    label: string;                 // 中文名
+    unit: string;                  // 默认单位（可被单位系统解析）
+    quantityKind?: 'temperature-difference';
+  };
   variables: VariableDefinition[];
   constants?: ConstantDefinition[];
-  solveFor: string[];
+  solveFor: string[];              // reference 恒为空
+  solutions?: Record<string, string>;
   constraints?: FormulaConstraint[];
   uncertainty?: UncertaintyCapability;
+  aggregates?: AggregateCapability;
   provenance: Provenance;
-  examples?: FormulaExample[];
+  examples?: FormulaExample[];     // computable 至少 1 个；registry 测试自动执行校验
+  conditions?: string;             // reference 必填
+  customCompute?: (inputs: Record<string, number>) => number;
 }
 ```
+
+注册表静态校验（`registry.ts validateRegistry()`）在 CI 中必须返回空错误列表：id 唯一、domain/topic 已登记、KaTeX 可渲染、表达式可编译、变量/结果单位可解析、compute 目标有算例、reference 有条件且无表达式。物理常数集中在 `src/physics/constants.ts`（SI 定义常数标记 exact，CODATA 推荐值标非 exact；课程默认 `g=9.8`、标准重力 `g_n=9.80665`、万有引力常量 `G` 三者语义不得混淆；表达式中字母 `e` 是 Euler 常数，基本电荷用 `q_e`）。
 
 `provenance.status` 必须为：
 
@@ -410,15 +425,18 @@ src/
     tsinghua-a1-2026/
     tsinghua-foundation-2020/
     gbt-27418-2017/
+  physics/            # 物理常数（BIPM/CODATA，exact 标记）
   formulas/
-    registry/
-    measurement/
-    mechanics/
-    oscillation/
-    waves/
-    thermal/
-    electromagnetism/
-    optics/
+    types.ts          # domain/topic/kind/result schema
+    registry.ts       # 聚合 + 搜索 + validateRegistry 静态校验
+    measurement.ts
+    mechanics/        # kinematics / dynamics / energy-momentum / rotation-gravity-fluids / friction
+    thermal/          # heat-transfer / thermal-properties / thermodynamics
+    em/               # electrostatics / circuits / magnetism / hall / induction-ac
+    waves/            # oscillations / waves-sound
+    optics/           # geometric / physical
+    modern/           # relativity / quantum-atomic / nuclear-solid
+    standards/        # gbt
   experiments/
     tsinghua-a1-2026/
   instruments/
@@ -429,7 +447,7 @@ src/
   tests/
 ```
 
-禁止让某个实验组件直接依赖另一个实验组件的内部实现；共享数学逻辑必须下沉 `core/`。
+禁止让某个实验组件直接依赖另一个实验组件的内部实现；共享数学逻辑必须下沉 `core/`。公式结果元数据只允许存放在 `FormulaDefinition.result`，禁止重新引入 `result-units` 之类的并行映射。
 
 ## 17. 测试最低要求
 

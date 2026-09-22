@@ -1,6 +1,6 @@
 /** FormulaCard — 公式卡片（主操作「计算」+「复制」菜单：LaTeX / Markdown 行内 / Markdown 块） */
 import { useNavigate } from 'react-router-dom';
-import { FormulaDefinition, CATEGORY_LABELS } from '../formulas/types';
+import { FormulaDefinition, DOMAIN_LABELS, topicLabel } from '../formulas/types';
 import { Tex } from './katex';
 import { varSymbolTex } from './varSymbol';
 import { copyText } from './clipboard';
@@ -19,14 +19,15 @@ export function FormulaCard({ formula }: { formula: FormulaDefinition }) {
       <div className="fc-title">
         <span><MarkdownInline>{formula.title}</MarkdownInline></span>
         <SourceBadge provenance={formula.provenance} />
+        {formula.kind === 'reference' && <Badge variant="info">参考公式</Badge>}
         <span className="spacer" />
-        <Badge variant="default">{CATEGORY_LABELS[formula.category]}</Badge>
+        <Badge variant="default">{`${DOMAIN_LABELS[formula.domain]} · ${topicLabel(formula.domain, formula.topic)}`}</Badge>
       </div>
       <div
         className="fc-latex"
         onClick={() => navigate(`/formulas/${formula.id}`)}
         style={{ cursor: 'pointer' }}
-        title="打开公式计算器"
+        title="打开公式详情"
       >
         <Tex tex={formula.latex} display />
       </div>
@@ -42,7 +43,9 @@ export function FormulaCard({ formula }: { formula: FormulaDefinition }) {
         ))}
       </div>
       <div className="fc-actions">
-        <Button size="sm" variant="primary" icon="arrow-right" onClick={() => navigate(`/formulas/${formula.id}`)}>计算</Button>
+        <Button size="sm" variant="primary" icon="arrow-right" onClick={() => navigate(`/formulas/${formula.id}`)}>
+          {formula.kind === 'reference' ? '查看' : '计算'}
+        </Button>
         <Menu
           trigger="复制"
           items={[

@@ -45,13 +45,13 @@ export function buildCustomProfile(opts: CustomProfileOptions): StandardProfile 
     simplification: {
       enabled: opts.simplificationEnabled,
       threshold: 1 / 3,
-      label: '当 ΔA < ΔB/3 时取 Δ = ΔB（可关闭）',
+      label: '当 $\\Delta_A<\\Delta_B/3$ 时取 $\\Delta=\\Delta_B$（可关闭）',
     },
     sigfig,
     rulesSummary: [
       `自定义规则，不代表课程或 GB/T 标准`,
-      `包含概率 P = ${opts.confidence}`,
-      `A 类${opts.typeAWithTFactor ? '乘 t 因子' : '直接用平均值标准不确定度'}`,
+      `包含概率 $P=${opts.confidence}$`,
+      `A 类${opts.typeAWithTFactor ? '乘 $t$ 因子' : '直接用平均值标准不确定度'}`,
       opts.bMode === 'instrument-limit' ? 'B 类直接取误差限' : 'B 类按分布换算为标准不确定度',
       opts.typeAWithTFactor && opts.bMode === 'distribution'
         ? '⚠ 此组合把 t 因子化的 A 类与标准不确定度形式的 B 类混算，与 GB/T 相悖'

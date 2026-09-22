@@ -1,1715 +1,886 @@
-# plan.md — Physics Experiment Assistant 完整产品与实现计划
+# plan.md — Physics Experiment Assistant v4 优化与通用大学物理公式扩展计划
 
-## 0. 文档定位
+> 审计基线：`invincible-summer/Physics-Experiment-Assistant` `main` 分支，commit `d1950e3a4420fec6e72fd43f16e01e58226f49de`（2026-09-22）。
+>
+> 本计划是下一轮实现的严格依据。未在本计划中要求改动、且当前已经正确稳定的数值算法、实验计算链和数据模型，应保持现状，不为“重构”而重构。
 
-本文档是项目的详细产品规格 + 数学规格 + 技术实施计划。第一版目标是：**在纯前端 GitHub Pages 环境中，完整支持上传的 2026 秋物理实验 A(1) 课程规则和 7 个实验，并同时提供可扩展的公式计算与通用数据处理工具。**
+## 0. 实施结果（2026-09-22，本轮已完成）
 
-所有实现必须同时遵守 `AGENTS.md`。
+Phase A–E 全部落地并验收：
 
-## 0.5 实现状态（v1，2026-09-19）
+- **A UI 缺陷**：侧栏展开 216px / 折叠 60px；折叠控件改为 28×28 低权重图标按钮；footer 改为齿轮设置入口 + 主题切换（移除可点击标准徽章）；新增字号档位 90–140%（`data-font-scale`，字号 token 全部 rem 化）；课程/GB/T `rulesSummary` 全部 LaTeX 化并配回归测试。
+- **B 公式架构**：`FormulaDefinition` 迁移为 `domain + topic + kind + result + tags`；旧 69 个 id 全保留；`result-units.ts` 已删除；公式页为「一级 domain + 二级 topic + 分批渲染（首批 24）」；reference 公式（高斯定律、法拉第定律、薛定谔方程等 10 条）不显示数值计算器；`validateRegistry()` 静态校验入 CI。
+- **C 单位与常数**：新增速度/加速度/动量/力矩/黏度/摩尔/电场/磁通/eV 等 40+ 单位（全部往返测试）；`src/physics/constants.ts` 建立（BIPM exact：c/h/e/k_B/N_A 及派生 ħ、R；CODATA 2022：G/ε0/μ0/质量等；`COURSE_DEFAULT_G=9.8` 与 `g_n=9.80665`、`G` 区分）。
+- **D 公式库扩展**：15 个主干领域/33 个专题全覆盖，可见公式 298 条（计划预计 200–250，超出部分为 §6 逐条列出的核心关系，无凑数条目）；每条 computable 公式有单位、条件、provenance、校验算例（自动执行），另有独立权威样例交叉检查（逃逸速度 11.19 km/s、Hα 4.567e14 Hz、1 u=931.5 MeV 等）。
+- **E 性能与 CI**：公式页/SourcesPage 路由级 lazy（首页初始 chunk gzip 439.5 kB，低于基线 460.3 kB；公式库独立 chunk 165.9 kB）；ECharts 改 `echarts/core` 按需注册（图表 chunk 1043→580 kB，SVG 屏显 + Canvas PNG 导出能力不变）；CI 新增 Chromium Playwright job。
+- 验收：typecheck、224 个 unit/golden/property 测试、35 个 Playwright e2e、production build 全部通过；按钮文字无越界的实屏检查见仓库截图轮次。
 
-MVP 判定（§22）各条目状态：
+以下正文为本轮的原始计划，保留作依据。
 
-- ✅ 设置页 3 个正式标准 profile + custom（含矛盾组合警告）
-- ✅ 完整数值/单位/有效数字/课程不确定度核心（`src/core/*`，语句覆盖 96.7%/分支 80.9%，122 测试）
-- ✅ 基础 GB/T 模式（A/B/合成/相关/有效自由度/扩展，与课程模式类型级隔离）
-- ✅ 数据表（TSV 粘贴/键盘导航/撤销/派生列/行排除审计）、OLS/过原点/加权拟合、ECharts SVG 图（误差棒/图表规范检查/SVG/PNG 导出）
-- ✅ 公式工作台及 §20 全部 70 个公式（含 provenance、显式解、单位下拉）
-- ✅ 7 个 2026 实验模板（步骤/数据表/拟合/图/结果检查器/导出）
-- ✅ Markdown/LaTeX/CSV/JSON/SVG/PNG 导出；本地 IndexedDB 保存（schemaVersion + 迁移钩子）
-- ✅ GitHub Pages 部署流水线（typecheck → test → build → deploy）；HashRouter + 子路径 base
-- ✅ golden tests（环体积 9.44±0.08 cm³、t 表 ν=1…120、OLS 课程公式交叉验证）+ fast-check 属性测试
-- ✅ 移动端可用（底部导航、步骤横滚、检查器底部抽屉、表格冻结表头）
-- ⏳ 未含于 v1（后续版本）：PWA 离线（§Phase 7）、多项式/非线性/ODR 拟合（§6.5 后续）、通用大学物理公式库扩展（§8.5，Phase 8）、Playwright 在 CI 的浏览器安装（配置与用例已就绪 `e2e/smoke.spec.ts`）
+## 1. 本轮目标与边界
 
-实现备注：golden test 中环体积等资料示例的输入数据集为"与资料最终答案对齐的重构数据"（源 PDF 未随仓库提供），已在测试注释中标注；公式 provenance 按 §8.4 的资料分类标注，湿空气声速等推导式标 `source-derived`。
+本轮同时解决三个用户可直接感知的问题和一个结构性能力缺口：
 
-## 0.6 前端重设计（v2，2026-09-21，已被 v3 取代）
+1. **侧栏更紧凑、更克制**：当前桌面侧栏展开宽度 `248px`、折叠宽度 `76px`，品牌区的“收起导航”按钮占据独立一行，视觉权重过高；底部当前标准徽章又承担“去设置”的入口，容易被理解为设置按钮。本轮要把展开侧栏压缩到约 `216px`、折叠侧栏压缩到约 `60px`，将收起/展开控件改为低视觉权重的小型控制，并把侧栏底部的“2026 A(1)”设置入口改成**齿轮**。
+2. **加入字体大小设置**：当前 `html { font-size: 15px }` 固定，同时大量字号 token 和局部字号使用 `px`，用户无法在应用内改变字号。本轮加入持久化字号偏好，并把主要文字体系改为可缩放的 `rem`/token 体系；同时保证浏览器 200% 缩放时不丢失内容或功能。
+3. **修复课程规则中的公式未渲染**：当前 `StandardProfile.rulesSummary` 中的 `P = 0.95`、`ΔA = t₀.₉₅(ν)·S_x̄`、`ΔB = Δ仪`、`Δ = √(ΔA² + ΔB²)` 等是普通 Unicode 文本，没有 `$...$` 数学定界符；`MarkdownList` 虽然支持 KaTeX，但拿不到数学 token，因此最终只显示普通文字。本轮必须改成真正的 Markdown + LaTeX 数学，并加回归测试。
+4. **将公式工作台从“课程/实验公式库”扩展为“大学物理主干公式库”**：当前实际注册公式为 **69 条**，主要集中在测量、不确定度、7 个实验、振动/声速/光学和 GB/T；基础力学、流体、热力学、电磁学主干、现代物理等仍大量缺失。扩展目标不是堆字符串，而是建立可维护的领域化公式注册表、单位/常数体系、适用条件和逐式测试，使大学物理 I–III 的主干章节都有可搜索、可复制、可计算或可明确标记为“参考公式”的条目。
 
-v2 确立了「Markdown 渲染层全覆盖、`src/app/styles/` 令牌化主题、`app/shell/` 声明式导航」三条 UI 基线，v3 在其上继续演进；v2 的具体样式记录不再单独保留，以现行代码为准。
+本轮仍坚持纯前端 GitHub Pages，不加入后端、不加入运行时数据库服务、不加入大型 UI/Markdown/搜索框架。公式扩展不能破坏当前课程模式与 GB/T 模式隔离，也不能改变已经验证正确的 7 个实验计算链。
 
----
+## 2. 当前仓库完整架构审计结论
 
-## 0.7 工作台化重构（v3，2026-09-21）
+### 2.1 工程与运行时
 
-目标：从「页面集合」升级为「工作流式工作台」。视觉方向定为**仪器控制台**（冷白纸面/石墨暗色 + 点阵纹理 + 手绘描边图标），不改 `src/core` 数学语义。
+当前技术栈是 React 18 + TypeScript 5.6 + Vite 5，路由使用 `HashRouter` 以兼容 GitHub Pages；状态偏好使用 Zustand `persist` 写入 `localStorage`，实验项目使用 Dexie/IndexedDB；表达式由 mathjs AST 安全求值，公式由 KaTeX 渲染，图表由 ECharts 绘制。构建工作流在 `.github/workflows/deploy.yml` 中执行 `npm ci`、typecheck、单元测试和 production build，再部署 Pages。
 
-- **设计系统 v3**：tokens 换色板（light accent 青碧 `#0c6f63`、dark 石墨 + 夜光青）；新增点阵 `.dotgrid`、统计数字块 `.stat-tile`、进度 `.progress-*`、步骤翻页 `.step-pager`、菜单 `.menu-*` 等；全部图标集中到 `components/Icon.tsx`（35 枚内联 SVG，仅装饰、永远配文字）。
-- **首页仪表盘化**：继续上次工作主卡（含填写进度）→ 工作流引导条 → 任务入口 → 标准摘要/最近项目。
-- **DataGrid v2**（`components/DataGrid.tsx` + 纯数据结构 `grid-history.ts`）：修复旧撤销恒失效与键盘输入不入栈两个缺陷（结构变更记录 + 聚焦快照模型）；新增 CSV/TSV 文件导入、批量序列填充/清空列、列宽拖动、末行 Enter 自动增行、非法单元格计数脚注。
-- **工具页统一表格录入**：统计/拟合/加权平均全面弃用 textarea，改用 DataGrid（保留原始文本与有效数字信息）；加权平均手动权重模式不再显示误导性的 `1/√Σw` 不确定度。
-- **工具间数据总线**（`features/tools/tool-bus.ts`，sessionStorage）：统计列 → 拟合/加权平均；拟合斜率/截距、加权均值 → 不确定度传播；接收页顶部横幅确认「填入」才覆盖，绝不静默。
-- **工具草稿持久化**（`use-tool-draft.ts`，localStorage）：六个工具页输入刷新不丢。
-- **新增 `/tools` 枢纽页**：六工具入口卡 + 数据流转说明。
-- **实验工作台工作流化**：stepper 三态（done/todo/attention，由 `engine.stepStatuses` 判定）、顶栏步骤进度、每步底部翻页条（末步「去导出」）、检查器按钮带结果/警告计数并首次自动展开一次、计算失败保留上次成功结果 + 醒目错误、参数非法标红给原因、迁移提示确认后落盘、检查器内审计日志折叠面板、手动保存模式下 dirty 时 beforeunload 保护。
-- **引擎正确性修复**：`parseTable` 派生列链——此前派生列引用派生列（如 `P = MP·g` 引用 `MP`）必得 NaN，导致摩擦 A 部分等拟合永远「数据不足」；现按列序求值并回写作用域（与 DataGrid 显示层一致），附回归测试。
-- **公式工作台修复**：目标量不再要求填写输入、无显式解明确报错（禁 NaN）、单位换算失败标红并阻止计算（AGENTS §7）、输入变更清旧结果、变量符号 KaTeX 化（`varSymbol.ts`）、复制最终表达；卡片操作收敛为「计算」+ 复制菜单；搜索与分类取交集。
-- **PhysicsPlot 升级**：ResizeObserver 自适应、误差棒不进图例、tooltip 显示 ±误差、annotations 真渲染（拟合式与 r 上图）、导出图数据 CSV。
-- **持久化/导出修复**：「导出全部」从死备份修复为 `projects-archive` 信封格式，导入兼容单项目/归档/裸数组三种载荷（纯函数 `parseProjectImport` + 11 条往返测试）；项目页支持搜索/排序/重命名/复制；设置页补齐 showRR2/defaultErrorBars/latexUnitStyle 与恢复默认。
-- **验证基线**：单元测试 161 个全绿（含 grid-history、tool-bus、stepStatuses、parseTable 派生链新增测试）；e2e 冒烟 9 用例（新增 /tools 枢纽、数据流转、工作台 stepper）；typecheck/build 全绿。
-- **仍未做（明示）**：工作台图未接逐点误差棒（数据集定义尚无不确定度列）；ODR 拟合、PWA 离线保持 v1 口径的「未支持」。
+这套技术栈适合当前项目，不需要换框架。特别是以下部分已经足够好，本轮应保留：
 
-## 0.8 体验修复与能力补齐（v3.1，2026-09-21）
+- `src/core/numeric`：保留原始输入与有效数字元数据，避免 `15.0` 和 `15` 被等同处理；
+- `src/core/sigfig`：修约集中实现，中间计算不提前修约；
+- `src/core/statistics` / `regression`：t 分布、OLS、加权拟合、课程公式视图已有较完整测试；
+- `src/core/uncertainty`：课程模式与 GB/T 模式通过策略分离，当前课程 `ΔA/ΔB/Δ` 逻辑已经有 golden/性质测试；
+- `src/core/expression`：使用 AST 白名单，不使用 `eval` / `new Function`；
+- `src/components/Markdown.tsx`：无 raw HTML、无额外 Markdown 依赖，能够渲染 inline/block 数学，安全边界清晰；
+- `src/persistence/db.ts`：IndexedDB、导入导出、schema 校验、旧格式兼容和审计日志已经成体系；
+- 七个 `src/experiments/tsinghua-a1-2026/*` 实验模板和计算管线：已有逐实验公式测试，不应因本轮 UI 和公式库扩展而重写。
 
-- **侧栏收起态重叠修复**：收起宽度 76px 内 brand-mark（36px）与收起按钮（≈32px）横向溢出重叠；改为收起态纵向堆叠布局，触控目标保持 ≥24px。
-- **原创产品标识**：`components/BrandMark.tsx`（同心干涉环 + 穿过测量点的波形，几何线稿，非通用 AI 图形）替换侧栏「φ」字符；`index.html` 增加 SVG data-URI favicon（规避 base 子路径假设）。
-- **绘图工作台 `/tools/plotter`**：DataGrid 多列数据系列（可增删/改名/连线，最多 6 系列）+ `y=f(x)` 表达式系列（安全 AST 求值、取样区间与点数可配、对数横轴几何取样）混合成图；图名/轴名/单位/**坐标起点终点（轴范围）**/对数轴可配置；PhysicsPlot 新增 `xMin/xMax/yMin/yMax`；SVG/PNG/CSV 导出；经工具总线接收任意表格载荷、可发送线性拟合；草稿持久化。
-- **公式列聚合输入**：`FormulaDefinition.aggregates` 新能力 + `formulas/aggregates.ts` 派生函数——平均值（S=Σxi、n）、贝塞尔标准偏差（Q、n）、平均值标准偏差（S、n）、相关系数（Sxx/Sxy/Syy）支持直接粘贴数据列自动派生，**不再要求用户手工先求和**；配对/缺值行跳过，派生值保持完整精度。
-- **公式完整过程导出**：公式计算器结果区新增「复制完整过程 Markdown / 下载 .md」（公式 → 代入 → 未修约 → 修约 → 最终表达 + 变量表 + 标准与时间页脚，`buildFormulaProcessMarkdown`）。
-- **完整实验报告导出**（`export/report.ts`）：`buildFullReportMarkdown`（封面/实验信息 metadata/参数/数据表含排除行标注/拟合/全部结果/规则摘要/诊断/审计日志/生成信息）与 `buildFullReportLatex`（ctexart + booktabs 可编译文档，附录审计日志）；工作台导出 Modal 升级为四 tab（完整报告 MD / 完整报告 LaTeX / 数据处理片段 / CSV·JSON）。
-- **渲染审计收尾**：公式计算器 `<option>` 的裸 LaTeX 符号转 Unicode 纯文本（平台例外位置不含 LaTeX 语法）；修复 friction 步骤说明错字。
-- **验证基线**：单元测试 177 全绿（新增 aggregates 9、report 7）；e2e 10 用例（新增绘图工作台出图/轴范围/导出断言，枢纽页更新为 7 工具）；typecheck/build 全绿。
+### 2.2 应用壳与侧栏现状
 
----
+`src/app/shell/AppShell.tsx` 通过 `settings.sidebarCollapsed` 切换 `.is-collapsed`；`SideNav.tsx` 的结构是品牌区、导航区、footer。`nav-config.ts` 已经把桌面与移动端导航放在单一配置源中，这一点应保留。
 
-## 0.9 绘图与工具体验优化（2026-09-22）
+当前视觉问题有明确代码根因：
 
-按 §4、§6.8、§11、§14 实施，不改变课程和 GB/T 数学规则。
+- `tokens.css`：`--sidebar-w: 248px`、`--sidebar-w-collapsed: 76px`；
+- `SideNav.tsx`：`sidebar-brand-row` 内先放品牌，再放一个带图标和“收起导航/展开”文字的按钮；
+- `layout.css`：品牌区使用纵向布局，按钮因此单独占一行；
+- 折叠态仍显示两字 compact label，这个设计本身可保留，但 `76px` 有继续压缩空间；
+- footer 中 `StandardProfileBadge` 是可点击按钮，展开时显示“标准：2026 A(1)”，折叠时仍显示短名；它事实上又是设置入口，视觉语义不清；
+- `nav-config.ts` 已有正常的“设置”导航项，图标也是 `settings`，所以 footer 的大标准徽章没有必要继续承担设置按钮角色。
 
-1. 清理本计划意外嵌入的重复前半部分，恢复 Markdown UI 章节并统一现行 CSS 技术栈表述。
-2. 工具枢纽增加任务搜索；绘图以「数据录入 / 函数曲线 / 图名与坐标」分组编辑区与宽幅预览组织，小屏按单列排列，提供函数快捷添加（明确为数学函数，不生成实验数据）。
-3. 坐标边界和采样点数显式校验；无效/缺失/对数轴非正点给出诊断；遇到已检测的无定义采样点断开曲线，保留原始输入。
-4. 共享图表增加网格、缩放与恢复视图；SVG 和真正的 PNG 通过独立渲染器导出，白底同时使用深色文字，避免修改屏幕图。
-5. 绘图、拟合、加权平均及实验工作台按路由加载，提供加载与失败重试状态，避免首页提前下载图表库。
-6. 验收：typecheck、183 个单元测试、14 个 Playwright 用例和 production build 通过；覆盖范围错误阻止出图、函数快捷添加、草稿恢复、PNG 文件头、暗色主题白底 SVG、390px 移动端布局及首页延迟加载图表代码。
+### 2.3 字体系统现状
 
-构建主脚本 gzip 从 828.81 kB 降至 461.30 kB；图表代码独立为按需加载的资源。当前主脚本和图表分块仍有 Vite 大包提示，后续可继续按数学功能拆分。函数绘图使用有限采样，只对已检测的无定义点断线，不能保证发现采样点之间的全部奇点；这是数学函数绘图界面，不执行 MATLAB 脚本。
+当前字号不能全局改变的原因不是单一一处，而是两层：
 
----
+- `base.css` 将 `html` 固定为 `15px`；
+- `tokens.css` 的 `--fs-xs` 至 `--fs-3xl` 全部是 `px`；
+- `layout.css` / `components.css` 仍有不少局部硬编码 `10.5px`、`11px`、`12.5px`、`13.5px`、`14px`、`15.5px`、`21px`、`22px` 等。
 
-# 1. 资料阅读结论与产品边界
+因此仅新增一个 `fontScale` 并修改 `html.style.fontSize` 并不能完整解决；必须把“文本字号”从绝对像素逐步归一到 token/rem。边框、图标、阴影、像素级间距不需要跟随字号一起放大。
 
-## 1.1 当前课程真正需要的不是“公式百科”，而是两条互补工作流
+### 2.4 课程规则公式渲染现状
 
-上传的 2026 秋课程资料明确把报告的核心放在数据整理、计算、作图、不确定度分析和规范结果表达；绪论课课件又进一步规定了有效数字、作图、拟合及参数表达方式。因此产品划分为：
+`MarkdownInline` / `MarkdownBlock` 已经能够把 `$...$`、`\(...\)`、`$$...$$`、`\[...\]` 交给 KaTeX，`MarkdownList` 也会逐项调用 `MarkdownBlock`。所以渲染引擎本身不是主要问题。
 
-### A. 专门实验工作台
+问题出在标准 profile 数据：`src/standards/tsinghua-a1-2026.ts` 和 `tsinghua-foundation-2020.ts` 的 `rulesSummary` 把公式写成普通 Unicode 字符串，例如：
 
-围绕 2026 秋 A(1) 的 7 个实验构建完整流程：
+- `置信概率 P = 0.95`
+- `A 类分量 ΔA = t₀.₉₅(ν)·S_x̄，自由度 ν = n−1`
+- `B 类分量 ΔB = Δ仪`
+- `总不确定度 Δ = √(ΔA² + ΔB²)`
 
-- 预设实验元数据与仪器参数；
-- 现场/课后原始数据记录；
-- 派生列自动计算；
-- 修正已定系统误差；
-- 作图与拟合；
-- 不确定度；
-- 有效数字；
-- 最终结果表达；
-- Markdown/LaTeX/CSV/JSON/图片导出；
-- 生成“数据处理”报告片段，但不编造实验数据和主观结论。
+这与课程资料的数学含义一致，但没有用 Markdown 数学分隔符，所以网页只能按正文显示。课程资料明确给出：总不确定度置信概率为 `P=0.95`，A 类分量为 `Δ_A=t_P(ν)S_{x̄}` 且重复测量时 `ν=n−1`，B 类教学简化取 `Δ_B=Δ_仪`，总不确定度使用方和根合成；当 `Δ_A<Δ_仪/3` 或单次测量时允许简化为 `Δ=Δ_仪`。这些表达式必须按课程原意在 UI 中成为真正的数学公式，而不是继续维护 Unicode 伪公式。
 
-### B. 公式与通用计算工作台
+### 2.5 公式系统现状与可扩展性瓶颈
 
-面向没有固定实验模板的任务：
+当前 `src/formulas` 共 69 个 `F({...})` 公式定义：
 
-- 搜索/选择大学物理常用公式；
-- 选择待求变量；
-- 填写数值、单位、不确定度；
-- 自动换算单位、求值、传播不确定度；
-- 输出完整代入过程；
-- 复制 LaTeX / Markdown；
-- 通用统计、加权平均、拟合、插值、科学计算、有效数字处理。
+- measurement + instruments：18；
+- friction：2；
+- hall + thermal：11；
+- oscillation：10；
+- waves：12；
+- optics：8；
+- GB/T：8。
 
-两部分共享同一数值核心、单位核心、拟合核心、不确定度核心和输出格式核心。
+当前 formula registry 的优点是：公式不散落在 JSX；每条定义有变量、单位、显式解、条件、不确定度能力、provenance、示例等；搜索是轻量线性过滤，无额外依赖。
 
-## 1.2 上传资料的角色
+但要扩展到几百条大学物理公式，现结构有三个明显瓶颈：
 
-| 资料 | 项目用途 | 优先级 |
-|---|---|---:|
-| 2026秋物理实验A(1)教学资料 | 默认课程 profile、7 实验流程、当前有效数字与数据处理规则 | 最高 |
-| 课程基础知识202009.pptx | 绪论课细节：中间运算有效位数、最终修约、拟合参数表达 | 高（无冲突时采用） |
-| 讲义第II部分课程基础知识 | 不确定度/拟合公式交叉核对、拟合参数不确定度 | 高（兼容） |
-| 2020 B(1) 课程须知两份 | 历史课程工作流参考；两份完全相同 | 历史 |
-| GB/T 27418-2017 | 专业标准模式 | 独立 profile |
+1. `FormulaCategory` 把“课程领域”和“实验专题”混在同一级，继续添加 mechanics/electrostatics/modern 等后，一级 tab 会过多；
+2. 公式主结果的单位存放在独立的 `src/formulas/result-units.ts`，结果符号又通过 `resultSymbolFromLatex()` 从等式左边猜取，定义元数据分散，容易漏同步；
+3. `expression` 当前强制存在，而高斯定律积分式、法拉第定律积分式、薛定谔方程等“重要但不适合直接填几个数求值”的公式并不适合硬塞成普通数值计算器公式。
 
-## 1.3 课程模式与 GB/T 模式的关键区别
+此外，当前 `README.md` / 旧 `plan.md` 出现“70+ / 70 个公式”的文案，而实际注册定义是 69 条，说明文档中的手写公式数量已经发生漂移。以后不再把某个精确数量写成长期产品事实；运行时页面直接从 registry 计算，文档只写“覆盖哪些领域”。
 
-### 2026 A(1) 课程模式
+### 2.6 单位与物理常数现状
 
-- 95% 置信概率；
-- `ΔA=t0.95(ν) S_x̄`；
-- `ΔB=Δ仪`（教学简化）；
-- `Δ=sqrt(ΔA²+ΔB²)`；
-- 单次测量 `Δ=Δ仪`；
-- `ΔA<Δ仪/3` 时允许直接采用 `Δ仪`；
-- 不确定度一般 2 位有效数字，首位≥3 时可以 1 位；
-- 相对不确定度一般 2 位有效数字；
-- 测量值末位与不确定度末位对齐。
+`core/quantity` 已有基本长度、面积、体积、质量、时间、频率、温度、力、能量、功率、电流、电压、电阻、电荷、电容、电感、磁场、压强、密度、热导率、比热、霍尔相关单位，足够当前实验，但不足以覆盖完整大学物理公式库。尤其缺少：速度、加速度、动量、角动量、力矩、黏度、表面张力、电场强度、电势梯度、介电常数、磁通、磁通量单位、导电率、电阻率、熵、摩尔热容、电子伏、原子质量单位等常见单位族。
 
-### GB/T 27418-2017
+`src/formulas/types.ts` 还同时放着 `E_CHARGE`、`R_GAS`、`G_STANDARD`。其中 `G_STANDARD = 9.8` 实际是本课程常用的重力加速度默认值，不应与标准重力 `9.80665 m/s²` 或万有引力常量 `G` 在命名上混淆。扩展现代物理公式时，应把物理常数从 formula 类型文件中拆出来并记录来源/是否精确。
 
-- A/B 是“评定方法类别”，最后都转成标准差形式的**标准不确定度**；
-- B 类要根据概率分布换算，例如矩形半宽 `a → a/√3`；
-- 相关输入要使用协方差；
-- 合成得到 `uc`；
-- 需要高包含概率时再用 `U=k uc` 或 t 因子产生扩展不确定度；
-- 支持有效自由度；
-- `uc` 与 `U` 通常最多 2 位有效数字；
-- 最终结果必须说明是标准不确定度还是扩展不确定度。
+### 2.7 性能现状
 
-这两套逻辑必须从配置和类型层面隔离，而不是在 UI 上只换一个标签。
+已经做对的部分：Plotter、Regression、WeightedMean、ProjectWorkbench 有路由级 lazy，首页不会加载 `PhysicsPlot` 代码，现有 Playwright 已对此做检查。
 
----
+仍可优化的部分：
 
-# 2. 信息架构与导航
+- `App.tsx` 当前**同步导入** `FormulasPage`，因此 formula registry 会进入首页主依赖图。公式扩展到 200+ 后，这会直接增加首屏 JS；
+- `PhysicsPlot.tsx` 使用 `import * as echarts from 'echarts'`，会引入完整 ECharts。ECharts 官方明确推荐 `echarts/core` + 按需 charts/components/renderers 以显著减小 bundle；
+- 公式列表当前会一次性渲染全部结果；如果直接扩展到几百条，一次挂载数百个 KaTeX 组件会带来不必要的 DOM/CPU 成本。
 
-## 2.1 顶级导航
+因此“公式更多”必须和“按路由加载 + 分批渲染 + ECharts 按需引入”一起做，而不是只增加数据文件。
 
-桌面侧栏 / 移动端底栏：
+## 3. UI 优化详细方案
 
-1. **首页**
-2. **实验**
-3. **公式**
-4. **数据处理**
-5. **项目**
-6. **设置**
-7. **关于 / 规则来源**
+### 3.1 侧栏尺寸与布局
 
-## 2.2 首页
+目标值：
 
-首页不做公式瀑布流，采用“任务导向”：
+- 展开宽度：`216px`；若实屏检查发现英文品牌副标题持续溢出，可在 `212–220px` 内微调，但不得回到 `240px+`；
+- 折叠宽度：`60px`；保留现有两字 compact label，不退化为只有图标的不可读导航；
+- 品牌标记：从当前视觉 `36px` 容器收至约 `32px`，品牌文字保持一行截断；
+- 导航项垂直高度保持紧凑，鼠标/触控可点击区域不低于 32px，移动端继续使用现有底部导航。
 
-- 继续最近实验项目；
-- 新建 2026 A(1) 实验；
-- 快速数据处理；
-- 公式计算；
-- 最近使用的公式；
-- 当前标准 badge，例如“2026 秋物理实验 A(1)”；
-- 标准差异提醒：用户切换标准后，在首页展示当前规则摘要。
+`sidebar-brand-row` 改回一行：左侧品牌，右侧小型折叠控制。不要再让“收起导航”形成第二行。
 
-## 2.3 实验列表
+### 3.2 收起/展开按钮
 
-卡片显示：
+按钮仍必须是真正的 `<button>`，保留键盘、focus-visible、`aria-expanded`、`aria-label`，但视觉上改为“工具按钮”而不是“主按钮”：
 
-- 实验名称；
-- 学科标签；
-- 数据处理类型标签（线性拟合 / 时序区间 / 光学位置 / 干涉计数等）；
-- 报告类型（2026：阻尼完整报告，其他极简报告）；
-- 是否含安全提示；
-- 新建项目按钮。
+- 默认无实心背景、无明显边框，仅显示 `panel-left` 图标；
+- 尺寸约 28×28px；
+- 默认使用 `ink-3`，hover/focus 时才增强到 `ink-1` / accent；
+- 展开态不再显示“收起导航”文字；折叠态也不显示“展开”文字，文字只放在 `title` / `aria-label`；
+- 不做漂浮大圆按钮，不放到内容区，不制造第二条边栏。
 
----
+这样解决“按钮过于突兀”，但没有牺牲可访问性。
 
-# 3. 设置页面完整设计
+### 3.3 设置入口：`2026 A(1)` 改为齿轮
 
-## 3.1 “标准与课程”区
+`SideNav` footer 不再把 `StandardProfileBadge` 当成设置按钮。具体方案：
 
-主选择器以大卡片呈现：
+- 删除 footer 中可点击的标准徽章；
+- footer 改为一行轻量工具区：**齿轮设置按钮** + 主题切换；
+- 齿轮按钮使用现有 `Icon name="settings"`，点击 `navigate('/settings')`；
+- 展开态可以在 hover/focus tooltip 说明“设置”，不需要再显示 `2026 A(1)`；折叠态仍是同一齿轮；
+- 当前标准仍在首页“当前标准规则摘要”、公式页页头、设置页中明确展示，因此不会丢失状态信息；
+- `nav-config.ts` 中现有“设置”导航项先保留，避免改变用户既有导航路径。实屏验收若发现 footer 齿轮与导航项重复感明显，可以在同一 PR 中把系统组的“设置”项移除，但必须确保桌面和移动端都仍有至少一个显式设置入口。默认建议是**先保留，后根据实屏结果决定是否去重**。
 
-### 选项 1：2026 秋物理实验 A(1)（默认、推荐）
+### 3.4 字体大小设置
 
-摘要直接显示：
+在 `Preferences` 增加：
 
-- P=0.95；
-- `ΔA=tSx̄`；
-- `ΔB=Δ仪`；
-- 方和根合成；
-- 有效数字按当前课程要求；
-- 完整支持 7 个实验。
+- `fontScale: 0.9 | 1 | 1.1 | 1.25 | 1.4`；默认 `1`；
+- 设置页“外观”面板增加“界面字号”选项：90%、100%、110%、125%、140%；
+- 恢复默认设置时恢复到 100%；
+- `pea.settings` 持久化，旧用户没有该字段时自然合并为默认 1，不需要 IndexedDB migration。
 
-点击“查看规则”打开侧栏，显示来源章节与公式。
+把 `useThemeSync()` 扩展成 `useAppearanceSync()`：统一同步 `data-theme` 和 `data-font-scale` 到 `<html>`。不要在每个组件读取字号设置。
 
-### 选项 2：2020 课程基础知识 / 绪论兼容
+CSS 迁移原则：
 
-用途：复现旧讲义和绪论课 PPT 的计算与显示规则。
+- `html` 默认仍等价于 15px；各 `data-font-scale` 只改变根字号；
+- `--fs-xs` 至 `--fs-3xl` 改成 `rem`；
+- 所有“文字字号”的硬编码 px 改为 token 或 rem；
+- 图标尺寸、1px 边框、阴影、侧栏宽度、部分布局间距保留 px，不随着字号机械放大；
+- 输入框、按钮、tab、badge、表格、toast、modal、Markdown、KaTeX 所在父级全部随正文字号缩放；
+- `.katex` 保持 em 相对字号，避免单独乘倍导致数学式和正文失衡。
 
-### 选项 3：GB/T 27418-2017
+设置中的 140% 是便捷应用内缩放；浏览器本身还必须支持到 200% zoom 而不丢内容。W3C WCAG 1.4.4 的目标是文本可放大到 200% 且不损失内容或功能，因此验收不能只看“设置项能改变 CSS”，必须做 200% 浏览器缩放布局测试。
 
-摘要：标准不确定度、概率分布、协方差、有效自由度、扩展不确定度。
+### 3.5 响应式与字体放大时的布局规则
 
-### 选项 4：自定义
+- `<=900px` 继续隐藏桌面侧栏并使用 mobile bottom nav；
+- 大字号时 panel header、按钮组、filter、表单列允许换行，不允许把文本裁掉；
+- 表格、代码、长数学式可以在自身容器横向滚动，但**页面 body 不能出现整体横向滚动**；
+- 公式卡、badge、按钮长文案允许换行，图标不得被挤压；
+- 工作台继续保持“左步骤 + 中央内容 + 唯一右结果检查器”，不增加第二右栏。
 
-显式配置：
+## 4. 课程规则公式渲染修复
 
-- 默认包含概率；
-- A 类算法；
-- B 类算法；
-- 独立/相关处理；
-- 不确定度有效位数；
-- 相对不确定度有效位数；
-- `ΔA<ΔB/3` 简化是否启用；
-- 报告模板规则。
+### 4.1 直接修复 profile 数据
 
-自定义配置上方永久显示“自定义规则，不代表课程或 GB/T 标准”。
+`TSINGHUA_A1_2026.rulesSummary` 和 `TSINGHUA_FOUNDATION_2020.rulesSummary` 的数学内容统一改为 Markdown 数学：
 
-## 3.2 “数值与有效数字”区
+- `置信概率 $P=0.95$`
+- `A 类分量 $\Delta_A=t_{0.95}(\nu)\,S_{\bar{x}}$，自由度 $\nu=n-1$`
+- `B 类分量 $\Delta_B=\Delta_{\text{仪}}$（仪器误差限，教学简化）`
+- `总不确定度 $\Delta=\sqrt{\Delta_A^2+\Delta_B^2}$（方和根合成）`
+- `单次测量取 $\Delta=\Delta_{\text{仪}}$`
+- `$\Delta_A<\Delta_{\text{仪}}/3$ 时允许简化为 $\Delta=\Delta_{\text{仪}}$`
+- 间接量传播统一用 `\Delta_Y`、`\partial f/\partial x_i` 的 LaTeX 写法。
 
-可设置：
+GB/T profile 同样把 `u_c²`、`c_i`、`U=k u_c` 等 Unicode 伪公式改为 `$...$`，但**不改变标准含义**。
 
-- 最终不确定度有效数字：由标准决定 / 1 / 2；
-- 首位≥3 时是否允许压缩为 1 位；
-- 相对不确定度位数；
-- 科学记数法阈值；
-- 中间步骤显示位数（仅显示，计算仍保留全精度）；
-- 修约模式；
-- 百分数显示位数；
-- 角度显示：deg/rad；
-- 拟合 `r` 默认位数。
+### 4.2 保留 Markdown 渲染器，不引入新依赖
 
-当用户选择“由标准决定”时，不允许局部组件覆盖。
+现有 `Markdown.tsx + Tex/KaTeX` 足以完成修复，不引入 `react-markdown`、remark、rehype 或 MathJax。仅补充测试和少量公式字符串规范。
 
-## 3.3 “单位与物理量”区
+为了避免以后再出现“看起来像公式但没有渲染”的回归，新增约束：
 
-- 自动转换到 SI：始终开启（内部）；
-- 输出偏好：自动 / SI / 跟随输入；
-- 常用单位偏好，例如长度 mm、cm、m；电压 μV/mV/V；磁场 mT/T；
-- 摄氏温度显示偏好；
-- 是否显示维度检查信息。
+- `rulesSummary` 中出现 `Δ`、`u_c`、`` 等数学表达时必须放在数学定界符内；
+- 不依赖 Unicode 下标 `₀.₉₅`、Unicode 根号 `√`、Unicode 上标 `²` 来模拟排版；
+- 原生 `<option>` / `title` / `aria-label` 等无法放 React 节点的地方才允许使用纯文本符号。
 
-## 3.4 “图表与导出”区
+### 4.3 课程来源不改义
 
-- 默认导出 SVG / PNG；
-- 打印图白底；
-- 拟合式位置；
-- 是否显示 `r` / `R²`；
-- 默认误差棒；
-- Markdown 数学风格 `$...$` / `\(...\)`；
-- LaTeX 单位风格 `\mathrm{}`。
+课程资料中的关键规则继续保持：`P=0.95`；重复测量的 `\Delta_A=t_P(\nu)S_{\bar{x}}`、`\nu=n-1`；教学简化 `\Delta_B=\Delta_{\text{仪}}`；方和根合成；`\Delta_A<\Delta_{\text{仪}}/3` 或单次测量可按课程规定简化。不得为了“统一成 GB/T”而把课程模式 B 类改成 `a/\sqrt3`。
 
-## 3.5 “数据与隐私”区
+## 5. 公式库架构升级
 
-- 自动保存；
-- 项目保留策略；
-- 导出全部项目 JSON；
-- 导入；
-- 清空本地数据；
-- 明示“数据默认仅保存在本浏览器”。
+### 5.1 公式分类从单层 category 改为“domain + topic”
 
-## 3.6 “实验功能”区
+为了容纳完整大学物理，不继续向当前 `FormulaCategory` 塞几十个一级分类。建议一次迁移成：
 
-- 显示实验安全提示；
-- 显示公式来源；
-- 显示计算诊断；
-- 实验性高级拟合开关；
-- 专家模式（显示 AST、灵敏度系数、协方差矩阵等）。
+- `domain`：一级学科域，稳定、数量少；
+- `topic`：章节/专题，可扩展；
+- `tags`：搜索辅助词。
 
----
+一级 domain 建议固定为：
 
-# 4. UI 视觉与交互设计
+- `measurement`：测量、统计、仪器、不确定度；
+- `mechanics`：运动学、动力学、能量动量、转动、引力、流体；
+- `thermal`：热学、气体、热力学；
+- `electromagnetism`：静电、电路、磁学、电磁感应、交流、电磁波、霍尔；
+- `oscillations-waves`：振动、机械波、声学；
+- `optics`：几何光学、干涉、衍射、偏振；
+- `modern`：相对论、量子、原子、凝聚态/半导体、核物理；
+- `standards`：GB/T 等测量标准公式。
 
-## 4.1 视觉语言
+当前 friction 归入 mechanics/friction，hall 归入 electromagnetism/hall，实验 thermal 归入 thermal/heat-transfer；不丢失原有搜索词和来源。
 
-目标：现代、克制、像“实验室工作台”，不是花哨公式站。2026-09-20 的前端重构进一步确定为**文本优先、低装饰、轻依赖**：
+### 5.2 把结果元数据收回 FormulaDefinition
 
-- 全局导航、主操作和危险操作使用清晰文字，不把 emoji、箭头、“＋/×”图案当作主要按钮；计算器数学键等领域内天然符号保留；
-- 背景采用低对比层级，面板以细边框和留白为主，默认不堆叠重阴影；
-- 首页入口卡采用“类别提示 + 标题 + 简述 + 文字入口”，取消大号 emoji 图标；
-- 数学内容高对比，关键结果用更大的等宽数字与单位；数据录入区优先保证密度和可扫读性；
-- 警告/安全信息与计算错误采用语义边框与文字标题，不依赖图案；
-- 公式来源、假设、计算步骤采用可折叠次级信息；
-- 大量表格时减少卡片嵌套，优先使用连续工作区；
-- 不新增图标库或组件框架，继续使用现有 React + CSS，避免额外下载、解析和运行时开销。
+删除“双数据源”设计：`result-units.ts` 不应继续随着公式数增长而维护一个并行映射。
 
-可访问性基线使用 WCAG 2.2：Target Size (Minimum) 2.5.8 要求交互目标至少 24×24 CSS px，Focus Visible 2.4.7 要求键盘焦点可见。实现中按钮/输入实际目标尺寸高于最低值，并提供统一 `:focus-visible` 样式与 `prefers-reduced-motion`。
-官方参考：
-- https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html
-- https://www.w3.org/WAI/WCAG22/Understanding/focus-visible.html
+`FormulaDefinition` 增加显式结果信息：
 
-## 4.2 实验工作台布局
+- 主结果符号 LaTeX；
+- 主结果名称；
+- 主结果默认单位；
+- 必要时 quantityKind；
+- 计算类型 `computable` / `reference`。
 
-桌面宽屏：
+迁移完成后：
 
-```text
-┌───────────────────────────────────────────────────────────────────┐
-│ 顶栏：返回项目 | 项目名 | 实验/标准 | 保存状态 | 显示结果 | 导出 │
-├──────────────┬─────────────────────────────────┬───────────────────┤
-│ 步骤导航     │ 主工作区                        │ 唯一结果检查器    │
-│ 1 参数       │ 数据表 / 图 / 表单              │ 即时计算结果      │
-│ 2 原始数据   │                                 │ 不确定度          │
-│ 3 数据处理   │                                 │ 有效数字          │
-│ 4 作图拟合   │                                 │ 公式与来源        │
-│ 5 不确定度   │                                 │ 诊断              │
-│ 6 最终结果   │                                 │                   │
-└──────────────┴─────────────────────────────────┴───────────────────┘
-```
+- `FormulaCalculator` 不再调用 `resultSymbolFromLatex()` 猜左值；
+- 不再从 `RESULT_UNITS[id]` 查主结果单位；
+- `src/formulas/result-units.ts` 删除；
+- 旧公式逐条迁移，不能同时保留新旧两套长期并行。
 
-约束：右侧只允许这一个结果检查器，不再增加任何第二右栏。检查器默认可隐藏；当视口不足以舒适容纳三列（当前断点约 1280px）时，结果区移到主工作区下方，左侧步骤栏继续保留，从结构上杜绝“双右边栏”和被压窄的数据表。
+### 5.3 支持“参考公式”而不是硬凑数值计算
 
-移动端：
+对通用积分/微分方程或定义式，例如高斯定律积分形式、法拉第定律积分形式、麦克斯韦方程组、含时/定态薛定谔方程，增加 `kind: 'reference'`：
 
-- 顶部仅保留项目级必要操作，过长元信息隐藏或折叠；
-- 主区域按步骤单页，步骤横向滚动；
-- “结果”在展开时作为主内容后的单列区块，不再复制成右侧栏/第二抽屉；
-- 底部主导航为文字标签，不使用 emoji 图标；
-- 表格横向滚动并冻结表头，按钮保留足够触控面积；
-- 支持大数字键盘友好输入。
+- 仍可搜索、显示、复制 LaTeX/Markdown、显示变量/符号和来源；
+- 详情页不显示普通数值输入计算器，而显示“参考公式/适用条件”；
+- 不伪造一个不正确的 scalar expression；
+- 可同时存在对应的可计算特例，例如“无限长直导线磁场”“球对称电场”“粒子在一维无限深势阱能级”。
 
-### 4.2.1 2026-09-20 前端视觉重构实施与验收
-
-本轮只调整展示层和少量交互文案，`src/core`、标准 profile、实验 compute 管线、公式定义和持久化 schema 不改动。主要落点：`src/app/styles.css`、`AppShell.tsx`、通用 `ui.tsx`、首页、实验工作台、数据表和公式详情。
+### 5.4 公式模块按领域拆分
 
-验收标准：
-1. 桌面导航无 emoji 图标；首页入口无装饰性图标；普通业务按钮无纯图案按钮。
-2. 实验工作台宽屏最多一个右侧结果区；≤1280px 时结果区进入主区下方；≤900px 时单列布局。
-3. 数据表“添加/插入/删除/撤销/重做”全部为文字按钮，TSV 粘贴、键盘导航、审计排除等原功能不回归。
-4. 亮/暗主题均使用同一套设计 token；按钮最小高度 32px（移动端 34–38px），输入最小高度 40px，焦点清晰可见。
-5. `prefers-reduced-motion` 生效；不引入新 npm 依赖。
-6. 现有 E2E 关键文案继续保留；`npm run typecheck`、`npm test`、`npm run build` 全通过后才允许合并。
-7. GitHub Pages 部署继续使用现有 HashRouter、仓库子路径 base 和现有 CI，不增加服务端依赖。
+建议目录：
 
-### 4.2.2 全站 Markdown UI 文案层
+- `formulas/measurement.ts`（保留）；
+- `formulas/mechanics/kinematics.ts`；
+- `formulas/mechanics/dynamics.ts`；
+- `formulas/mechanics/energy-momentum.ts`；
+- `formulas/mechanics/rotation-gravity-fluids.ts`；
+- `formulas/thermal/thermal-properties.ts`；
+- `formulas/thermal/thermodynamics.ts`；
+- `formulas/em/electrostatics.ts`；
+- `formulas/em/circuits.ts`；
+- `formulas/em/magnetism.ts`；
+- `formulas/em/induction-ac.ts`；
+- `formulas/waves/oscillations.ts`；
+- `formulas/waves/waves-sound.ts`；
+- `formulas/optics/geometric.ts`；
+- `formulas/optics/physical.ts`；
+- `formulas/modern/relativity.ts`；
+- `formulas/modern/quantum-atomic.ts`；
+- `formulas/modern/nuclear-solid.ts`；
+- 当前 7 实验特有公式仍可放原实验相关模块或被合并到上述 domain，但 provenance 必须保留课程来源。
 
-所有可富文本渲染的 UI 文案统一经 `components/Markdown.tsx` 输出，不新增运行时依赖。
+每个文件保持几十条以内，避免出现一个 2,000 行巨型公式文件。
 
-- `MarkdownInline`：单行文案、控件标签及行内数学。
-- `MarkdownBlock`：较长正文；除 inline 能力外支持标题、引用、 fenced code、分隔线、普通/有序/任务列表、Markdown 表格、`$...$` / `\\[...\\]` 数学。
-- `MarkdownList`：已有字符串数组的统一列表出口，列表项内部继续使用 inline Markdown。
-- `markdownInlineNode`：供 `Panel`、`Badge`、`ConfirmButton` 等共享组件在保留已有 ReactNode 扩展能力的同时自动处理字符串/数字文案。
-
-安全与交互约束：
-- 不渲染 raw HTML，不使用 `dangerouslySetInnerHTML`；源字符串中的 HTML 标签仅作为普通文本。
-- Markdown 链接只接受相对地址、hash、HTTP(S) 和 mailto；危险协议不生成 `<a>`。
-- 按钮、checkbox label 等交互控件内部禁用 Markdown 链接，以避免嵌套 `<a>` / `<button>`。
-- 数学复用现有 KaTeX 组件，不新增公式渲染路径。
-- `<option>`、input `placeholder`、`title`、`aria-label` 等原生字符串槽位无法承载富 React 节点，因此保留纯文本，并明确禁止在这些位置写 Markdown 标记。
-
-验收标准：
-1. 仓库所有业务 `<button>` 的可见标签经 `MarkdownInline` 或共享 `markdownInlineNode` 渲染；不存在直接业务字符串按钮。
-2. 业务列表统一使用 `MarkdownList`，或每个 `<li>` 内显式使用 `MarkdownInline`；动态规则、诊断、警告、审计日志均可使用 Markdown。
-3. 页面标题、说明、表单标签、help、notice、toast、空状态、panel 标题/副标题、badge 和结果说明支持 inline Markdown。
-4. Markdown block 覆盖标题/引用/代码块/列表/任务列表/表格/数学；相关单元测试覆盖。
-5. raw HTML 与 `javascript:` 链接不会被执行或输出为可点击危险链接。
-6. 按钮中的 `[label](url)` 只显示 label，不产生嵌套链接。
-7. 不新增 npm 依赖；核心计算、profile、实验定义、持久化 schema 不改。
-8. `npm run typecheck`、`npm test`、`npm run build` 全通过后合并；GitHub Pages 部署成功。
-
-### 4.2.3 边栏、提示与公式排版（2026-09-22）
-
-冲突处理：旧计划要求收起态仅保留符号，与 AGENTS.md §12 的可读文字要求冲突；采用图标＋短标签。旧版 KaTeX 使用 `dangerouslySetInnerHTML`，现已改为 KaTeX DOM API 渲染，保留 MathML，不执行 raw HTML。
-
-已完成的实现与验收：
-1. 品牌与切换按钮分行；展开态保留完整品牌，收起态保留短导航文字与展开按钮文字。偏好继续持久化，移动端只使用原底栏。
-2. 标准徽章允许换行并保持键盘焦点；边栏正文独立滚动，底部主题与标准入口保持可用。
-3. Notice 统一标题、正文和可选操作区；字符串正文走 MarkdownBlock，保留已有 React 内容。安全与错误信息保持展开；普通说明降低背景对比，不新增虚构公告。
-4. Toast 常驻礼貌播报区域，长文换行，提供关闭按钮并限制同时显示数量，移动端避开底部导航。
-5. 修复单行块公式分隔符和未闭合数学块的渲染；长公式在自身容器滚动，保留可访问 MathML；代码、原始输入和计算表达式不自动改写。
-6. 验收通过：类型检查、184 项单元测试、16 项 Playwright 回归、production build 和 diff 空白检查；覆盖完整品牌、收起短标签及持久化、390px 公式无页面溢出、MathML、复制反馈关闭及既有工具流程。数学算法、标准配置和项目 schema 未改动；生产构建仍存在已知大包提示。
-
-### 4.2.4 按钮与说明文字精修（2026-09-22）
-
-实现与验收：
-1. 统一普通、主操作、轻量和危险按钮的尺寸、边框及悬停/按下/禁用状态；主按钮使用稳定底色提升文字对比，减少装饰阴影。小按钮至少 32px，触屏至少 38px。
-2. 按钮标签独立排版，避免粗体、公式等 Markdown 节点被 flex 间距拆散；窄屏长标签允许换行，图标保持尺寸。面板标题与操作区在窄屏自然分行。实屏检查发现计算器左括号键空白、窄屏函数键断字，纳入修复并保持数字键顺序。
-3. 共享说明（面板副标题、表单帮助、空状态）支持 Markdown 段落、列表、公式；修正行内代码样式未生效和有序列表显示无序标记的问题。保留原始文本，不推测转换计算表达式。
-4. 统一说明行距、引用、代码及列表间距，兼容亮/暗色与减少动态效果偏好；不引入依赖、不修改计算或持久化规则。
-5. 已通过类型检查、184 项单元测试、16 项浏览器回归、生产构建和 diff 检查；桌面及 390px 实屏检查完成。计算器补充验证：左括号可读且正确插入，手机保持五列按键，无页面横向溢出。构建仍保留已知大包提示。
-
-全站说明及完整流程优化（已完成）：
-- 统一 23 个功能页/共享组件的独立说明为块级 Markdown；列表支持段落和公式，保留控件行内文字。整理计算器、设置、传播工具的操作说明，修正实验公式转义。
-- 计算器支持光标插入、选区替换/退格、复制即时结果、重用历史表达式及其角度模式。公式输入的非法/负不确定度显式标错并阻止计算，温度不确定度转换只缩放。
-- 报告提供完整源码、全选、自动换行、Markdown 阅读预览；取消 4000 字截断，按设置输出单位样式。修复 Markdown 表格竖线、LaTeX 特殊字符及作者分隔符，最终公式独立成块，补齐 LaTeX 步骤说明。
-- 复制失败不会误报成功；草稿保存失败给出一次提示。弹窗限制键盘焦点、恢复触发按钮焦点并锁定背景滚动；长内容内部滚动，标题与关闭入口常驻。
-- 全站 15 个入口分别检查桌面及 390px 布局，无运行时和 KaTeX 错误；修复拟合页窄屏溢出。187 项单元测试、20 项浏览器测试与 production build 通过，含源码下载一致性、选区计算、非法不确定度、复制失败回退。
-- 浏览器提供 Markdown 预览与 LaTeX 源码导出，未提供 PDF 编译；当前环境无 XeLaTeX，未执行实际 PDF 编译。构建仍有已知大包提示。所有计算保留原始输入与规则来源，不生成实验观测或主观结论。
-
-### 项目工作区体验优化（2026-09-22，已完成）
-
-1. 项目页分离主操作、筛选和列表；增加最近项目入口、实验筛选、清除筛选与明确结果数量。
-2. 使用主题令牌统一项目卡片、进度、管理区域，小屏排列成单列；填格比例仅表示录入量，不暗示计算已完成。
-3. 简化面向用户的技术性说明，提供读取重试和管理操作失败反馈。
-4. 类型检查与生产构建通过；9 项既有流程测试及新增项目筛选测试通过。实测搜索空状态、恢复列表、实验筛选、390px 无横向溢出；核对桌面和手机截图。首页计算器说明改为面向任务的操作文案。
-
-## 4.3 数据表格
-
-核心交互：
-
-- 粘贴 TSV/CSV；
-- Enter 下移、Tab 右移；
-- 多单元格选中；
-- 撤销/重做；
-- 批量单位；
-- 列类型：测量量、常量、派生量、序号、文本；
-- 派生量只读，可展开公式；
-- 缺失值使用 `—`，绝不自动填 0；
-- 异常格式标红边框但不篡改数据；
-- 支持一键“复制为 Markdown 表格”。
-
-## 4.4 结果检查器
-
-每个结果采用统一层级：
-
-1. 最终结果；
-2. 当前标准规则；
-3. 公式；
-4. 数值代入；
-5. 未修约结果；
-6. 不确定度分量；
-7. 修约过程；
-8. 来源。
-
-这样既满足学习需要，也满足报告“有公式、有代入式”的要求。
-
----
-
-# 5. 核心数据模型
-
-## 5.1 Project
-
-```ts
-interface Project {
-  id: string;
-  schemaVersion: number;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  standardProfileId: string;
-  experimentId?: string;
-  metadata: Record<string, unknown>;
-  tables: DataTableModel[];
-  userInputs: Record<string, MeasurementInput>;
-  notes: string;
-  uiState?: Record<string, unknown>;
-}
-```
-
-## 5.2 MeasurementInput
-
-```ts
-interface MeasurementInput {
-  rawText: string;
-  value: number;
-  unit: string;
-  sigDigits?: number;
-  decimalPlace?: number;
-  exact?: boolean;
-  correction?: QuantityValue;
-  uncertainty?: UncertaintyInput;
-}
-```
-
-## 5.3 CalculationResult
-
-```ts
-interface CalculationResult {
-  id: string;
-  valueSI: number;
-  displayValue: string;
-  unit: string;
-  uncertainty?: UncertaintyResult;
-  steps: CalculationStep[];
-  dependencies: string[];
-  warnings: Diagnostic[];
-  provenance: Provenance;
-}
-```
+## 6. 大学物理公式覆盖矩阵
 
-## 5.4 Provenance
+“全覆盖”按大学物理主干章节定义，而不是简单按条数。OpenStax University Physics Vol. 1–3 的章节结构覆盖了力学、波与声、热力学、电磁学、光学、相对论、量子、原子、凝聚态、核物理，可作为**通用扩展的章节覆盖参考**；这些条目必须标记 `provenance.status = 'general'`，不能冒充上传课程资料。
 
-```ts
-interface Provenance {
-  status: 'source-explicit' | 'source-derived' | 'general' | 'experimental';
-  document?: string;
-  section?: string;
-  page?: number;
-  equation?: string;
-  note?: string;
-}
-```
+以下列表是最低覆盖集合；当前已存在且正确的公式直接复用，不重复制造第二个 id。
 
-所有课程公式必须填写 provenance。
+### 6.1 测量、统计与仪器
 
----
+保留现有平均值、残差、贝塞尔标准差、平均值标准偏差、课程 A/B/总不确定度、相对不确定度、间接传播、OLS、相关系数、拟合参数不确定度、区间半宽、模拟/数字表、电阻箱、GB/T 各公式。补充：
 
-# 6. 数学核心模块设计
+- 绝对误差与相对误差定义；
+- 百分差、百分偏差；
+- 加权平均与 `w_i=1/u_i²` 特例；
+- 协方差/相关系数定义的可计算版本；
+- 线性插值；
+- 组合测量常见面积/体积/密度表达式作为实验数据处理常用条目。
 
-## 6.1 `core/numeric`
+### 6.2 力学：运动学与动力学
 
-职责：
+至少覆盖：
 
-- 安全数值解析；
-- 科学记数法；
-- Decimal 修约；
-- 防止 `NaN/Infinity` 泄漏到 UI；
-- 数值容差比较；
-- 格式化前保留原始值。
+- 位移、平均/瞬时速度、平均/瞬时加速度；
+- 匀加速 `v=v0+at`、`x=x0+v0t+at²/2`、`v²=v0²+2aΔx`、平均速度特例；
+- 自由落体；
+- 抛体水平/竖直分量、飞行时间、射程、最大高度；
+- 相对速度；
+- `v=ωr`、`a_c=v²/r=ω²r`、切向加速度；
+- 牛顿第二定律、重力、弹力、静/动摩擦；
+- 斜面分力；
+- 向心力关系；
+- 线性阻力/二次阻力只在能够明确给出模型假设时加入，必须写明适用范围。
 
-不负责单位、不确定度和有效数字策略。
+### 6.3 力学：功、能量、动量、碰撞
 
-## 6.2 `core/quantity`
+至少覆盖：
 
-职责：
+- 恒力功 `W=Fs cosθ`；
+- 动能、动能定理；
+- 瞬时/平均功率；
+- 重力势能、弹性势能；
+- 机械能守恒；
+- 动量、冲量、动量定理；
+- 质心位置/速度；
+- 一维完全非弹性碰撞；
+- 一维弹性碰撞通式；
+- 恢复系数；
+- 二体系统质心关系。
 
-- 物理量 + 单位；
-- SI 转换；
-- 维度运算；
-- 摄氏温度与温差；
-- 复合单位化简；
-- 推荐显示单位。
+### 6.4 力学：转动、平衡、弹性、引力、流体
 
-典型单位：
+至少覆盖：
 
-`mm cm m μm nm`, `g kg`, `ms s min`, `μV mV V`, `μA mA A`, `Ω kΩ`, `pF nF μF F`, `mH H`, `mT T`, `Hz kHz MHz`, `° rad`, `W`, `Pa`, `J/(kg·K)`, `W/(m·K)`, `m³/C`, `cm²/(V·s)`。
+- 角位移、角速度、角加速度与匀角加速关系；
+- 力矩、转动惯量定义；
+- 细杆、圆环、圆盘/圆柱、实心球、球壳常见转动惯量；
+- 平行轴定理；
+- `τ=Iα`、转动动能、角动量、角动量守恒；
+- 无滑动滚动 `v=ωR` 和滚动总动能；
+- 静力平衡 `ΣF=0`、`Στ=0`；
+- 正应力/应变/杨氏模量、剪切模量、体积模量；
+- 万有引力、重力场强、引力势能；
+- 轨道速度、轨道周期、逃逸速度、开普勒第三定律；
+- 密度、压强、静水压；
+- 阿基米德浮力；
+- 连续性方程；
+- Bernoulli 方程；
+- Torricelli；
+- Poiseuille、Stokes 阻力、终端速度；
+- 表面张力/毛细上升的常用形式。
 
-## 6.3 `core/sigfig`
+### 6.5 振动、机械波与声学
 
-必须提供：
+在现有阻尼/受迫振动、示波器/声速公式上补齐：
 
-- `countSignificantDigits(rawText)`；
-- `roundToSigDigits(value,n)`；
-- `roundToDecimalPlace(value,place)`；
-- `formatUncertaintyCourse(value, profile)`；
-- `formatMeasurement(value, uncertainty, profile)`；
-- `formatRelativeUncertainty()`；
-- `formatFitParameter()`；
-- `formatScientificNotation()`。
+- 简谐运动 `x=A cos(ωt+φ)`、速度、加速度；
+- 弹簧振子 `ω=√(k/m)`、周期、总能量；
+- 单摆小角度周期；
+- 物理摆周期（作为可选进阶）；
+- 行波 `y=A cos(kx−ωt+φ)`、`v=fλ=ω/k`；
+- 弦波速 `√(T/μ)`；
+- 波强与振幅平方关系；
+- 驻波波节/波腹、两端固定弦谐波；
+- 开管/闭管共鸣频率；
+- 声强 `I=P/A`；
+- 声强级 `β=10log10(I/I0)`；
+- 拍频；
+- Doppler 常见静止介质模型，并在条件中写清声源/观察者符号约定。
 
-特别测试：`15.0`、`0.00980`、`980`、`1.0000`、跨十位进位、负数、0。
+### 6.6 热学与热力学
 
-## 6.4 `core/statistics`
+至少覆盖：
 
-### 必须实现
+- 摄氏/开尔文换算（温度与温差语义继续分离）；
+- 线膨胀、面积/体积膨胀；
+- `Q=mcΔT`、相变潜热；
+- 混合量热平衡；
+- Fourier 一维导热及稳态平板特例（现有实验式保留）；
+- 理想气体 `PV=nRT`；
+- 分子平均平动动能、`v_rms`；
+- 单原子理想气体内能；
+- 热力学第一定律，明确项目统一的做功符号约定；
+- 等容、等压、等温过程的热/功/内能变化；
+- 绝热关系 `PV^γ=const`、`TV^{γ−1}=const`；
+- `C_p-C_v=R`、`γ=C_p/C_v`；
+- 热机效率、制冷系数；
+- Carnot 效率；
+- 可逆过程熵变常见公式。
 
-- `sum`
-- `mean`
-- `weightedMean`
-- `sampleVariance`
-- `sampleStd`
-- `stdErrorOfMean`
-- `median`（通用）
-- `min/max/range/halfRange`
-- `covariance`
-- `correlation`
-- `linearInterpolation`
-- `percentDeviation`
-- `percentDifference`
+### 6.7 静电学、电势与电容
 
-### 加权平均
+至少覆盖：
 
-通用模式：
+- Coulomb 定律；
+- 点电荷电场；
+- 电场叠加（参考）；
+- 电偶极矩、轴线/赤道线远场可作为进阶；
+- 电通量；
+- Gauss 定律积分形式（reference）；
+- 无限长线电荷、无限大平面、球对称分布的可计算特例；
+- 点电荷电势、电势能；
+- `E=-dV/dx` 一维形式与通用梯度 reference；
+- 平行板电容、含介质；
+- 电容串并联；
+- 电容储能与电场能量密度。
 
-`x̄w = Σ(wi xi)/Σwi`。
+### 6.8 电流、直流电路与 RC
 
-若输入的是独立标准不确定度：
+至少覆盖：
 
-`wi=1/ui²`，`u(x̄w)=1/sqrt(Σwi)`。
+- `I=dQ/dt`、电流密度；
+- 漂移速度 `I=nqAv_d`；
+- `R=ρL/A`；
+- 电阻温度系数；
+- Ohm `V=IR`；
+- 电功率 `P=VI=I²R=V²/R`；
+- 电阻串并联；
+- Kirchhoff 结点/回路定律（reference + 简单计算特例）；
+- 电源内阻与端电压；
+- Wheatstone 平衡；
+- RC 充电/放电、电荷/电压/电流、时间常数。
 
-UI 必须显示使用的权重定义。
+这里可以直接补上旧 plan 写过但实际 registry 中缺失的 `R=U/I` 与 `P=UI`。
 
-## 6.5 `core/regression`
+### 6.9 磁场、磁力与磁场源
 
-### OLS
+至少覆盖：
 
-输出：
+- Lorentz 力；
+- 带电粒子垂直磁场圆周半径与回旋频率；
+- 载流导线磁力；
+- 磁偶极矩与力矩；
+- Biot–Savart 定律（reference）；
+- 长直导线、圆电流中心、长螺线管磁场；
+- Ampère 环路定律（reference）；
+- 平行长直导线单位长度作用力；
+- 现有 Hall 电压、Hall 系数、载流子浓度、磁阻公式继续保留。
 
-- a、b；
-- r、R²；
-- residuals；
-- SSE；
-- `Sa`、`Sb`；
-- 自由度 n-2；
-- t 置信区间。
+### 6.10 电磁感应、电感、交流与电磁波
 
-课程模式提供课程公式视图：
+至少覆盖：
 
-`Sb/b = sqrt((r^-2 - 1)/(n-2))`
+- 磁通量；
+- Faraday–Lenz 定律（reference）；
+- 匀强磁场中运动导体 `ε=Blv` 特例；
+- 转动线圈发电机正弦电动势；
+- 自感 `ε_L=-L dI/dt`；
+- 长螺线管电感；
+- 电感储能；
+- RL 上升/衰减时间常数；
+- `X_L=ωL`、`X_C=1/(ωC)`；
+- 串联 RLC 阻抗、相位、共振；
+- RMS 电压/电流、平均功率与功率因数；
+- 理想变压器；
+- `c=1/√(μ0ε0)`；
+- 平面电磁波 `E/B=c`；
+- Poynting 矢量和平均强度常见形式。
 
-`Sa = Sb sqrt(Σxi²/n)`
+### 6.11 几何光学
 
-`Δa=t Sa`，`Δb=t Sb`。
+在现有薄透镜、放大率、共轭法、焦距仪、凹透镜自准上补齐：
 
-### 其他
+- 反射定律；
+- Snell 定律；
+- 临界角与全反射；
+- 平面镜；
+- 球面镜成像与放大率；
+- 薄透镜成像与放大率（复用当前）；
+- 透镜制造者公式；
+- 光焦度；
+- 多薄透镜贴合等效焦距（可选进阶）；
+- Brewster 角。
 
-- through-origin OLS；
-- weighted least squares；
-- 多项式拟合（v1.1）；
-- 非线性拟合（后续）；
-- ODR（后续）。
+所有涉及符号正负的公式必须在 `conditions` 明确项目采用的符号约定，避免不同教材约定混用。
 
-## 6.6 `core/uncertainty`
+### 6.12 干涉、衍射与偏振
 
-采用策略模式：
+至少覆盖：
 
-```ts
-interface UncertaintyStrategy {
-  evaluateDirect(input: DirectMeasurementModel): UncertaintyResult;
-  propagate(model: MeasurementModel): UncertaintyResult;
-  format(result: UncertaintyResult): FormattedUncertainty;
-}
-```
+- 双缝光程差、亮/暗纹条件、条纹间距；
+- 薄膜干涉的正入射常见条件，并明确相位反转假设；
+- 现有 Michelson 光程差/测波长/白光玻片继续保留；
+- 单缝衍射极小条件；
+- 光栅方程；
+- 光栅分辨本领；
+- Rayleigh 圆孔分辨极限；
+- Malus 定律；
+- 非偏振光通过理想偏振片的 `I=I0/2` 特例。
 
-实现：
+### 6.13 狭义相对论
 
-- `TsinghuaCourseUncertaintyStrategy`
-- `GBT27418UncertaintyStrategy`
-- `CustomUncertaintyStrategy`
+至少覆盖：
 
-### 课程直接量
+- Lorentz 因子 `γ`；
+- 时间膨胀；
+- 长度收缩；
+- 一维 Lorentz 坐标变换；
+- 一维速度合成；
+- 相对论动量；
+- 总能量、静能、动能；
+- `E²=p²c²+m²c⁴`；
+- 质能关系。
 
-输入：重复数据、仪器误差、修正值、P。
+所有速度输入约束 `|v|<c`。
 
-输出：
+### 6.14 光子、物质波与量子基础
 
-- n；
-- mean；
-- corrected mean；
-- sample std；
-- std error；
-- ν；
-- t；
-- ΔA；
-- ΔB；
-- Δ；
-- relative Δ；
-- 是否触发 `ΔA<Δ仪/3` 简化；
-- 最终格式化结果。
+至少覆盖：
 
-### 课程间接量
+- `E=hf=hc/λ`；
+- 光子动量；
+- 光电效应 Einstein 方程；
+- 截止电势；
+- Compton 位移；
+- de Broglie 波长；
+- Heisenberg 位置-动量不确定关系；
+- 定态薛定谔方程（reference）；
+- 一维无限深势阱能级；
+- 隧穿的简单矩形势垒近似可列为进阶，并明确近似条件。
 
-表达式 AST + 独立输入 → 自动偏导 → 灵敏度贡献：
+### 6.15 原子、固体/半导体与核物理
 
-`ci = ∂f/∂xi`
+至少覆盖：
 
-`term_i = |ci| Δxi`
+- Bohr 半径/氢样原子能级；
+- Rydberg 光谱关系；
+- 能级跃迁光子频率/波长；
+- 晶格/能带类只放大学物理通用且可定义清楚的关系，不把材料物理专门模型硬塞入；
+- 现有 Hall/载流子浓度可作为半导体实验入口；
+- 核半径经验式；
+- 质能亏损与结合能；
+- 放射性衰变 `N=N0e^{-λt}`；
+- 活度 `A=λN`；
+- 半衰期 `T1/2=ln2/λ`；
+- 核反应 Q 值；
+- 成对产生/湮灭等可作为 modern reference，不追求粒子物理百科化。
 
-`ΔY=sqrt(Σterm_i²)`。
+### 6.16 覆盖数量的约束
 
-显示“贡献率”：`term_i² / ΔY²`。
+最终可见公式预计会落在约 **200–250 条**。验收以“上面 15 个主干领域和列出的核心关系全部存在”为第一标准；总数只作为漏项预警，不允许为了达到数字而添加重复、无条件说明、无单位、无测试的公式。
 
-### GB/T
+## 7. 物理常数与单位扩展
 
-每个输入量定义：
+### 7.1 常数模块
 
-```ts
-interface StandardUncertaintyComponent {
-  estimate: number;
-  standardUncertainty: number;
-  distribution?: 'normal' | 'rectangular' | 'triangular' | 'custom';
-  degreesOfFreedom?: number;
-  source: 'A' | 'B';
-}
-```
+新增独立的 `src/physics/constants.ts`（或等价单一模块），常数元数据至少包含 symbol、数值、单位、`isExact`、来源。
 
-允许输入：
+优先加入：
 
-- 标准差倍数；
-- 包含概率；
-- 上下限；
-- 厂商准确度；
-- 校准证书；
-- 自定义标准不确定度。
+- `c`、`h`、`e`、`k_B`、`N_A`：SI 定义常数，按 BIPM 固定值并标记 exact；
+- `\hbar`：由 exact `h/(2π)` 派生；
+- `G`、`ε0`、`μ0`、电子质量、质子质量等：使用 NIST/CODATA 2022 推荐值，按实际情况标记非 exact；
+- 标准重力 `g_n=9.80665 m/s²` 与课程默认 `g=9.8 m/s²` 明确区分；
+- 当前 `G_STANDARD` 重命名为 `COURSE_DEFAULT_G`，避免和万有引力常量 `G` 发生语义冲突；
+- `R` 使用受控常数值，且说明是摩尔气体常数。
 
-## 6.7 `core/expression`
+公式表达式内部避免把字母 `e` 当成基本电荷，因为 expression 引擎的 `e` 已代表 Euler 常数；基本电荷统一用 `q_e` 或 formula constant 名。
 
-能力：
+### 7.2 单位目录扩展
 
-- 安全表达式解析；
-- 符号别名；
-- 求值；
-- 对变量求导；
-- 对单变量代数求解（能显式解时）；
-- 否则使用受限数值 root solver；
-- 生成 LaTeX；
-- 维度预检查。
+继续使用当前显式静态 `UNIT_CATALOG`，**不引入完整单位解析库**。对大学物理常见单位新增明确定义，至少包括：
 
-严格禁止执行任意 JS。
+- `m/s`、`km/h`、`m/s2`；
+- `kg·m/s`、`N·s`、`kg·m2/s`、`N·m`；
+- `Pa·s`、`N/m`；
+- `mol`、`J/mol`、`J/(mol·K)`；
+- `W/m2`；
+- `V/m`、`N/C`；
+- `F/m`、`C/m2`；
+- `Ω·m`、`S`、`S/m`；
+- `Wb`；
+- `eV`、`keV`、`MeV`、`u`；
+- 现代物理常用 `eV/c` 不建议进入普通数值换算体系，除非维度模型能明确表达；优先保持 SI 输入并在显示层提供说明。
 
-## 6.8 `core/graph`
+所有新增单位必须有 `dim`、factor、中文名、family 和往返测试；带偏置温标仍沿用当前“绝对温度/温差”两套转换函数，不改现有正确逻辑。
 
-功能：
+## 8. 公式页面 UX 与性能
 
-- scatter；
-- line；
-- error bars；
-- fitted line；
-- residual plot；
-- multi-series；
-- dual y-axis（绪论课允许）；
-- log axis（特殊情况）；
-- SVG/PNG 导出。
+### 8.1 过滤界面
 
-图表检查器：
+公式页改为：搜索框 + 一级 domain + 二级 topic。一级 domain 数量保持约 8 个，不做 20 多个横向 tab。
 
-- 是否有轴名；
-- 是否有单位；
-- 是否有图名；
-- 是否存在无意义的笼统 x/y；
-- 拟合是否显示 r；
-- 坐标范围是否合理覆盖数据。
+默认“全部”时不一次渲染全部卡片。采用**无依赖分批显示**：
 
----
+- 首批 24 或 30 条；
+- “加载更多”每次增加一批；
+- 改搜索词/分类时重置到首批；
+- 不引入 virtualization 库。
 
-# 7. 仪器误差模块
+这样 200+ 公式不会一次初始化数百个 KaTeX DOM。
 
-## 7.1 模拟电表
+### 8.2 搜索
 
-`ΔA = Am · K%`。
+继续使用轻量 substring 搜索，不引入 Fuse.js。搜索字段扩展为：title、aliases、domain label、topic label、tags、变量名/中文名、LaTeX。数据规模在几百条内，线性过滤足够。
 
-输入：量程、准确度等级 K、读数。
+### 8.3 路由懒加载
 
-输出：绝对误差限、相对误差限；提示接近满量程可降低相对误差。
+`FormulasPage` / `FormulaDetailPage` 改为 route-level lazy，使大型公式定义不会进入首页初始 chunk。Vite 会自动对动态 import 做 code splitting，并对 async chunk 的共享依赖做 preload 优化。
 
-## 7.2 数字仪表
+如果以后公式库继续增长，再考虑按 domain 动态拆分 registry；本轮先做到“公式路由整体 lazy + 列表分批渲染”，不要过度设计。
 
-支持三种讲义形式：
+### 8.4 ECharts 按需引入
 
-1. `α%×读数 + n×末尾字`
-2. `α%×读数 + β%×量程`
-3. `α%×读数 + β%×量程 + n×末尾字`
+`PhysicsPlot.tsx` 从整包 `import * as echarts from 'echarts'` 改为 ECharts 官方 tree-shaking API：`echarts/core` + 当前实际使用的 Line/Scatter 等 chart、Grid/Tooltip/Legend 等 component，以及真正需要的 renderer。
 
-输入控件必须清楚区分：分辨率/末尾字、量程、读数。
+当前项目需要导出 SVG/PNG，renderer 选择必须按已有导出实现核实：如果同一个 chart 实例依赖 Canvas PNG 导出，则保留 CanvasRenderer；如果某条路径明确用 SVGRenderer，也只注册实际需要者。不要为了“体积更小”破坏现有 PNG/SVG 导出。
 
-## 7.3 电阻箱
+## 9. 文件级实施清单
 
-课程 0.1 级 ZX21 简化：
+### 9.1 必改
 
-`ΔR = 0.1%R + 0.005(N+1) Ω`。
+- `src/app/styles/tokens.css`：侧栏宽度、rem 字阶、字号 scale data selector；
+- `src/app/styles/base.css`：根字号逻辑和残余文本 px 审计；
+- `src/app/styles/layout.css`：品牌行、sidebar toggle、footer 工具区、折叠态 60px；
+- `src/app/styles/components.css`：按钮/badge/input/table 等硬编码字号迁移；
+- `src/app/App.tsx`：`useAppearanceSync`、公式路由 lazy；
+- `src/app/shell/SideNav.tsx`：低权重 toggle、gear 设置按钮、移除可点击标准徽章；
+- `src/stores/settings.ts`：`fontScale`；
+- `src/features/settings/SettingsPage.tsx`：字号设置；
+- `src/standards/tsinghua-a1-2026.ts`、`tsinghua-foundation-2020.ts`、`gbt-27418-2017.ts`：rulesSummary 数学 Markdown；
+- `src/formulas/types.ts`：domain/topic/result/kind/tags 等结构；
+- `src/formulas/registry.ts`：新 domain/topic 聚合和搜索；
+- `src/features/formulas/FormulasPage.tsx`：二级分类、分批显示、reference 公式详情；
+- `src/components/FormulaCalculator.tsx`：从 formula.result 读结果元数据，不再依赖外部 mapping；
+- `src/formulas/result-units.ts`：迁移后删除；
+- `src/core/quantity/index.ts`：新增单位；
+- `src/physics/constants.ts`：新增；
+- `src/components/PhysicsPlot.tsx`：ECharts 按需引入；
+- `src/tests/registry.test.ts`、`markdown-ui.test.ts`、`core-basics.test.ts`：新增对应回归；
+- `e2e/layout.spec.ts`、`e2e/smoke.spec.ts`：侧栏、齿轮、字号、数学渲染；
+- `.github/workflows/deploy.yml`：加入 Chromium e2e job；
+- `README.md` / `AGENTS.md` / `plan.md`：更新架构和公式覆盖说明，去掉会漂移的硬编码公式数量。
 
-## 7.4 实验专用仪器模板
+### 9.2 新增公式模块
 
-- 阻尼计时器：`读数×10^-5+0.001s`；
-- 声速频率：`Δf=10Hz`；
-- 焦距仪位置：0.004 mm；
-- 光具座位置：0.05 cm；
-- 共轭法给定 Δa/Δb；
-- 热电偶 40 μV/℃；
-- 电子天平分辨率 0.01 g 仅作为仪器元数据，除非讲义明确规定其误差模型，不自动把分辨率当作课程 Δ仪。
+按第 5、6 节领域拆分新增文件。每个新公式模块只导出定义数组，不放 React/UI 逻辑。
 
-最后一条非常重要：**分辨率 ≠ 自动等于仪器误差**，除非课程资料或仪器说明明确规定。
+### 9.3 默认不改
 
----
+除非新增公式暴露真实 bug，否则不改：
 
-# 8. 公式工作台设计
+- `core/sigfig`；
+- `core/statistics` 的 t/正态实现；
+- `core/uncertainty` 的课程与 GB/T 策略；
+- 7 个实验 compute；
+- IndexedDB schema；
+- Markdown parser 总体结构；
+- 报告导出数据模型。
 
-## 8.1 用户流程
+## 10. 测试与验收标准
 
-1. 搜索公式（中文名、英文名、符号、别名）；
-2. 查看公式、适用条件、变量定义、来源；
-3. 选择“求哪个量”；
-4. 填输入值和单位；
-5. 可选填写各输入量不确定度；
-6. 点击计算；
-7. 查看结果、传播贡献、有效数字；
-8. 复制 LaTeX / Markdown / 数值代入式。
+### 10.1 侧栏验收
 
-### 公式计算与复核功能修复（2026-09-22，已完成）
+1. 1280×800、1440×900、1920×1080 桌面视口下，展开侧栏实测宽度在 `212–220px`，默认目标 `216px`；折叠态在 `56–64px`，默认目标 `60px`。
+2. 展开态品牌和折叠按钮处于同一行；页面首屏不再出现一整行“收起导航”按钮。
+3. toggle 默认无高对比实心底/重边框；hover、focus-visible 时可清晰识别。
+4. toggle 有 `aria-expanded`，展开/折叠 `aria-label` 正确；Tab 可聚焦，Enter/Space 可触发。
+5. 折叠后所有主导航仍能通过 compact label 识别；当前已有“首页/实验/公式/工具/项目/设置/规则”语义不得丢失。
+6. 刷新页面后 `sidebarCollapsed` 持久化。
+7. 侧栏 footer 不再显示一个可点击的 `2026 A(1)` 标准徽章作为设置入口；可看到一个齿轮设置按钮，点击进入 `/#/settings`。
+8. 当前标准信息仍能在首页/公式页/设置页查到。
 
-1. 修复部分输入附带不确定度时的传播：完整传入其余输入与常量；空白不确定度只代表未提供，并在结果中说明假设；失败必须显式报告。
-2. 变量定义显式区分温度与温差，统一换算；反解使用目标变量单位并展示实际解式。
-3. 完整过程导出保留原始输入文本、输入单位、不确定度及换算值，以便复核和保留尾随零。
-4. 霍尔灵敏度按 KH=RH/d 修正为 m²/C，与霍尔系数 m³/C 区分；单位选项按量纲过滤。
-5. 验证：193 项单元测试、22 项 Playwright 测试及生产构建通过，涵盖常量/部分分量传播、非法不确定度、温差输入、反解单位、原始输入导出。上述改动不改变课程与 GB/T 的合成规则。构建仍有现存大包提示。
+### 10.2 字号验收
 
-### 公式草稿与原始数据流程（2026-09-22，已完成）
+1. 设置页有 90%、100%、110%、125%、140% 五档；修改立即生效并持久化。
+2. 主要正文、标题、按钮文字、输入、select、tab、badge、表格、toast、Markdown、KaTeX 随字号档位变化。
+3. 图标、1px 边框等不出现不合理倍增。
+4. 390px 移动视口分别在 100%、140% 下无 body 横向溢出；长公式只在公式容器内部滚动。
+5. 1280px 桌面在 140% 字号下：侧栏导航不裁切，panel header 可自然换行，按钮不相互覆盖。
+6. 浏览器 200% zoom 下：首页、公式列表、公式详情、设置页、实验工作台、工具页均无文字被不可恢复地裁切/遮挡；功能仍可操作。
+7. `resetToDefaults()` 将字号恢复为 100%。
 
-1. 使用现有工具草稿机制，按公式及版本保存目标量、原始输入、单位、不确定度与聚合表格；只恢复输入，不恢复过期计算结果。
-2. 对存储内容作结构与目标量校验，损坏或不兼容草稿回退初始状态；公式之间隔离。
-3. 聚合填入使用可往返的完整浮点文本，取消 12 位截断；明确有效行、空行和非空但不完整/非法行数。
-4. 验证：198 项单元测试、25 项浏览器测试及生产构建通过，包含刷新恢复、公式隔离、损坏草稿回退、成对数据有效行统计及高精度数据填入。草稿仅保存在当前浏览器，不替代项目备份。
+### 10.3 课程数学渲染验收
 
-## 8.2 公式卡片
+1. 首页“当前标准规则摘要”中至少以下内容出现 KaTeX + MathML，而不是普通 Unicode 文本：`P=0.95`、`Δ_A=t_{0.95}(ν)S_{x̄}`、`ν=n−1`、`Δ_B=Δ_仪`、`Δ=√(Δ_A²+Δ_B²)`。
+2. 设置页 2026 profile 的规则摘要同样渲染上述数学。
+3. 2020 profile 的相同规则也渲染数学。
+4. GB/T 的 `u_c`、`U=k u_c` 等摘要数学渲染正常。
+5. 数学式在 390px 下不撑破页面；MathML 仍存在。
+6. 课程规则的数值含义不变：现有 `uncertainty.test.ts` 全部继续通过。
 
-卡片内容：
+### 10.4 公式定义静态验收
 
-- 标题；
-- 渲染公式；
-- 变量 chips；
-- 来源 badge；
-- 适用条件；
-- “计算”“复制”“收藏”。
+每个公式必须满足：
 
-## 8.3 源码复制
+1. id 全局唯一，version 为正整数；
+2. domain/topic 存在并已注册 label；
+3. title、aliases/tags 足以搜索中英文常用名；
+4. latex 非空且 KaTeX 可渲染；
+5. `computable` 公式 expression 可被安全 AST 编译；
+6. `solutions` 中每个显式解可编译；
+7. 所有 variable/result unit 在单位系统中可解析，或明确为空/无量纲；
+8. 物理约束明确：分母非零、根号定义域、概率范围、`|v|<c`、小角近似等应放 `constraints/conditions`；
+9. provenance 必填；上传资料公式使用 source-explicit/source-derived，一般大学物理扩展用 general；
+10. `computable` 公式至少 1 个 numerical example，并有自动测试；reference 公式至少有符号/适用条件测试；
+11. 不允许 `experimental` 条目进入默认可见库。
 
-提供：
+### 10.5 公式覆盖验收
 
-- 纯 LaTeX；
-- Markdown 行内；
-- Markdown 块；
-- 带代入式 LaTeX；
-- 最终结果 LaTeX。
+1. 第 6 节 15 个主干领域全部有公式；
+2. 第 6 节逐条列出的核心公式均能通过 id/标题/别名搜索到；
+3. 当前 69 个公式的 id 保持兼容，已有链接和草稿 key 不失效；如必须改 id，要提供 alias/migration，默认不改旧 id；
+4. 旧课程/实验公式的 provenance 不被改成 general；
+5. 公式总可见条目预计 200–250，但不能以数量替代逐领域 checklist；
+6. 公式页默认首屏只挂载一批卡片，不一次渲染全部 200+ KaTeX。
 
-## 8.4 v1 公式功能详细列表
+### 10.6 单位与常数验收
 
-### A. 测量与统计（资料直接支持）
+1. 新单位全部 `convert(a→b→a)` 往返满足数值容差；
+2. 不相容量纲仍抛 `DimensionMismatchError`；
+3. ℃ 绝对值与温差逻辑现有测试继续通过；
+4. BIPM 定义常数 `c/h/e/k_B/N_A` 标记 exact；
+5. `G/ε0/μ0` 等按 CODATA 元数据标记正确；
+6. 课程默认 `g=9.8` 与标准重力/万有引力常量命名和语义不混淆。
 
-- 算术平均；
-- 残差；
-- 样本标准偏差；
-- 平均值标准偏差；
-- Student-t A 类分量；
-- 课程 B 类分量；
-- RSS 总不确定度；
-- 相对不确定度；
-- 一般函数不确定度传播；
-- 相对不确定度传播；
-- OLS a/b/r；
-- OLS 参数不确定度；
-- 区间半宽不确定度；
-- 线性插值。
+### 10.7 公式计算验收
 
-### B. 电学仪器（资料直接支持）
+对每个新增 domain 至少做一组手算/权威样例交叉检查；此外对每个 computable 条目跑 `examples`。重点 golden：
 
-- 模拟电表误差；
-- 数字表三种误差式；
-- 电阻箱误差；
-- `P=UI`、`R=U/I` 作为通用基础公式；
-- 串联谐振 `f0=1/(2π√LC)`。
+- 匀加速、抛体；
+- 动量守恒碰撞；
+- 转动惯量/滚动；
+- 轨道速度/逃逸速度；
+- Bernoulli；
+- 理想气体/热机；
+- Coulomb/电容/RC；
+- Lorentz/长直导线/感应；
+- RLC；
+- 双缝/单缝/光栅；
+- 相对论 `γ`；
+- 光电效应/de Broglie；
+- 放射性衰变。
 
-### C. 振动与波（资料直接支持）
+结果不允许 NaN/Infinity 穿透 UI；定义域错误必须显示可操作信息。
 
-- 阻尼振动运动方程参数关系；
-- `ωd=sqrt(ω0²-β²)`；
-- `Td=2π/ωd`；
-- `ζ=β/ω0`；
-- `τ=1/β`；
-- `Q=1/(2ζ)`；
-- 受迫振动幅频/相频；
-- 共振频率；
-- `v=fλ`；
-- 理想气体声速；
-- 干燥空气温度修正声速；
-- 湿空气声速；
-- 利萨如频率比。
+### 10.8 性能验收
 
-### D. 热学（资料直接支持）
+1. 首页初始加载不请求公式库 route chunk，也不请求 `PhysicsPlot/ECharts` chunk；
+2. 打开公式页后才加载公式相关 chunk；
+3. 打开绘图/需要图表的页面后才加载 ECharts；
+4. ECharts 改为官方按需导入后，production build 的 chart chunk 应比整包导入基线明显下降；如果未下降，必须说明是哪些组件/renderer 导致并撤回无收益复杂化；
+5. 添加 200+ 公式后，首页 initial JS gzip 不得相对本轮基线显著增长；目标是不增或下降；
+6. 公式搜索使用 O(N) 内存内过滤，无 Web Worker、无后台轮询、无大型搜索索引；
+7. 公式列表只渲染首批 24/30 条，连续“加载更多”不会重复创建已存在项。
 
-- Fourier 导热 `q=-λ dt/dx`；
-- 准稳态 `λ=qcR/(2Δt)`；
-- `c=qc/[ρR(dt/dτ)]`；
-- `qc=U²/(2Fr)`；
-- 热电偶线性温差换算。
+### 10.9 CI 验收
 
-### E. 半导体/磁学（资料直接支持）
+每次 PR / main 至少执行：
 
-- 霍尔电压；
-- RH；
-- KH；
-- 载流子浓度；
-- 磁阻相对变化。
+- `npm run typecheck`；
+- `npm test`；
+- `npm run build`；
+- Chromium Playwright e2e。
 
-### F. 光学（资料直接支持）
+GitHub Actions 新增 Playwright 浏览器安装步骤并缓存 npm，不要求部署 job 重复跑 e2e。最终 Pages 部署仍只在 main 且 verify 全通过后进行。
 
-- 薄透镜公式；
-- 放大率；
-- 共轭法焦距；
-- 焦距仪；
-- 自准法凹透镜；
-- 迈克尔逊等倾光程差；
-- 波长；
-- 白光玻片厚度/折射率。
+### 10.10 回归验收
 
-## 8.5 通用大学物理公式库扩展（非上传资料完整覆盖）
+以下既有能力不得退化：
 
-此部分明确标记 `general`，建议 v1.1 起逐类扩展：
+- 7 个实验均可创建项目并计算；
+- 课程与 GB/T 同输入得到不同且符合各自语义的结果；
+- `15.0` 有效数字语义不丢；
+- 公式草稿刷新恢复、公式间隔离；
+- DataGrid 粘贴/撤销/重做；
+- CSV/Markdown/LaTeX/JSON 报告导出；
+- SVG/PNG 图导出；
+- 深/浅/系统主题；
+- 390px 手机布局；
+- Markdown 不执行 raw HTML / javascript 链接。
 
-### 力学
+## 11. 实施顺序
 
-匀变速、抛体、圆周运动、牛顿定律、功/功率、动能定理、势能、动量/冲量、质心、碰撞、转动惯量、角动量、转动动力学、滚动。
+### Phase A — UI 缺陷先修
 
-### 振动与波
+一次 PR 完成侧栏宽度、toggle、gear 设置入口、fontScale、字号 CSS 归一和课程规则 LaTeX 化。这个阶段**不碰公式 schema**，便于快速验证用户当前最明显的问题。
 
-简谐振动、单摆、弹簧振子、机械波、驻波、拍、Doppler。
+验收：第 10.1–10.3 全通过，既有 unit/e2e 全绿。
 
-### 热学
+### Phase B — 公式架构迁移
 
-理想气体、热力学第一定律、等温/等压/等容/绝热过程、Carnot、热膨胀、热传导。
+迁移 `FormulaDefinition` 到 domain/topic/result/kind/tags；逐条迁移现有 69 个公式；删 `result-units.ts`；公式页改二级过滤和 reference 类型；新增 registry static validation。
 
-### 电磁学
+验收：现有 69 id 全保留；所有现有公式计算结果不变；公式页功能回归全通过。
 
-Coulomb、电场/电势、Gauss、电容、直流电路、Kirchhoff、Lorentz、Biot–Savart、Ampere、Faraday、电感、交流阻抗/RLC。
+### Phase C — 单位与常数地基
 
-### 光学
+扩 `quantity` 单位族；新建 constants；重命名课程 g；添加 BIPM/NIST 来源元数据和测试。
 
-反射折射、薄透镜、球面镜、干涉、衍射、光栅、偏振。
+验收：第 10.6 全通过，现有 quantity 测试无回归。
 
-这些扩展必须逐个加入变量/单位/约束/测试，不允许只建立一大串无类型字符串。
+### Phase D — 公式库分领域扩展
 
----
+按以下顺序分多个小 PR，每个 PR 都可独立验收，避免一次加入 150 条无法审查：
 
-# 9. 通用“数据处理”页面
+1. mechanics：运动学/动力学；
+2. mechanics：能量/动量/转动/引力/流体；
+3. thermal；
+4. electromagnetism：静电/直流；
+5. electromagnetism：磁场/感应/交流/电磁波；
+6. oscillations-waves；
+7. optics；
+8. modern。
 
-## 9.1 快速统计
+每个 PR 必须同时带定义、单位、examples、registry tests，不允许“先堆公式，之后再补测试”。
 
-输入一列或多列数据，可计算：
+### Phase E — 性能与 CI 收尾
 
-- n；
-- mean；
-- median；
-- sample std；
-- SEM；
-- min/max/range；
-- half-range；
-- 课程 ΔA/ΔB/Δ；
-- GB/T uA/uB/uc/U。
+公式 route lazy、列表分批、ECharts tree-shaking、Playwright CI、文档清理、构建产物对比。
 
-## 9.2 加权平均
+最终验收：第 10 节全部通过，且不留下旧 result-unit 映射、旧 category 双体系、废弃 formula module 或临时兼容代码。
 
-表格：`xi`, `ui` 或 `wi`。
+## 12. 明确不做的事情
 
-模式：
+- 不把课程 `Δ_B=Δ_仪` 改成 GB/T 的矩形分布标准不确定度；
+- 不用“更科学”为理由替换课程指定规则；
+- 不加入后端、账号、云同步；
+- 不加入 react-markdown/remark/MathJax/Fuse 等当前不需要的运行时依赖；
+- 不为公式库引入通用 CAS；mathjs AST 足够当前 scalar calculator；
+- 不做无限滚动复杂状态、虚拟列表库或 Web Worker 搜索；
+- 不为了视觉效果引入新的 icon/UI 框架；
+- 不重写已经验证的实验计算内核；
+- 不同时长期保留新旧 formula schema；迁移完成后清理旧文件和兼容层。
 
-- 手动权重；
-- `1/u²` 权重。
+## 13. 资料与外部依据
 
-输出：加权平均、权重占比、标准不确定度、贡献图。
+### 13.1 项目/课程资料
 
-## 9.3 线性拟合
+- `2026秋物理实验A(1)教学资料.pdf`：本项目课程规则最高优先级；其中 II-1 明确 `P=0.95`、A 类 t 因子、B 类 `Δ仪` 教学简化、方和根合成、`ΔA<Δ仪/3` 简化和有效数字规则。
+- `课程基础知识202009.pptx`、`讲义第II部分课程基础知识.pdf`：课程基础知识与历史兼容规则交叉核对。
+- `GB/T 27418-2017 测量不确定度评定和表示.pdf`：GB/T profile 的 A/B 类标准不确定度、合成标准不确定度、扩展不确定度依据。
 
-输入 x/y，选项：
+### 13.2 通用大学物理覆盖参考
 
-- 普通 OLS；
-- 过原点；
-- 加权；
-- x/y 对调；
-- 变换列 `ln x`, `ln y`, `x²`, `1/x`, `sqrt(x)`。
+- OpenStax University Physics Vol. 1–3：用于定义通用大学物理的章节覆盖边界（Mechanics；Waves/Acoustics；Thermodynamics；Electricity & Magnetism；Optics；Relativity；Quantum；Atomic；Condensed Matter；Nuclear）。通用扩展仅标记 `general`。
+- https://openstax.org/books/university-physics-volume-1/pages/preface
 
-输出：a/b/r/R²、置信区间、残差、图、Markdown。
+### 13.3 SI 与常数
 
-## 9.4 不确定度传播
+- BIPM SI defining constants：`c/h/e/k/N_A` 等定义常数及 exact 语义。
+- https://www.bipm.org/en/measurement-units/si-defining-constants
+- BIPM SI Brochure：SI 单位和书写规则。
+- https://www.bipm.org/en/publications/si-brochure
+- NIST/CODATA 2022：非定义常数与推荐值。
+- https://physics.nist.gov/cuu/Constants/
 
-用户输入：
+### 13.4 可访问性、构建与图表
 
-`Y = expression`
+- W3C WCAG SC 1.4.4 Resize Text：文本可放大至 200% 而不丢失内容/功能。
+- https://www.w3.org/WAI/WCAG21/Understanding/resize-text
+- Vite Features：dynamic import 和自动 code splitting/preload。
+- https://vite.dev/guide/features
+- Apache ECharts Handbook — Import ECharts：官方推荐 `echarts/core` 按需注册以减小 bundle。
+- https://echarts.apache.org/handbook/en/basics/import/
 
-然后自动识别变量，用户填写 `xi ± Δxi` 或 GB/T 标准不确定度。
+## 14. 最终 Definition of Done
 
-显示：
+只有同时满足以下条件，本轮才算完成：
 
-- 符号偏导；
-- 灵敏度系数；
-- 每项贡献；
-- 合成结果；
-- 修约结果。
-
-## 9.5 科学计算器
-
-支持：
-
-- 基础四则；
-- 幂/开方；
-- exp/ln/log；
-- trig；
-- π/e；
-- 科学计数；
-- 角度/弧度；
-- 单位值直接参与运算。
-
----
-
-# 10. 七个实验工作台详细设计
-
-## 10.1 摩擦系数测量
-
-### 页面步骤
-
-1. 项目与仪器参数；
-2. 秤盘质量；
-3. A：θ=π，P–W；
-4. B：MW=800g，P–θ；
-5. 模型识别与拟合；
-6. C：白绳 μu 和未知质量 Mu；
-7. 不确定度与结果；
-8. 导出。
-
-### A 数据表
-
-- `MW` 或砝码组成；
-- `MP-`；
-- `MP+`；
-- 自动 `MP=(MP-+MP+)/2`；
-- `ΔMP=(MP+-MP-)/2`；
-- `W=MW g`；
-- `P=MP g`。
-
-### 分析
-
-- P–W 散点；
-- 线性拟合；
-- 如果采用 Capstan 模型：斜率 `m=e^{-μθ}`，`μ=-ln(m)/θ`；
-- 不确定度由拟合斜率传播到 μ。
-
-### B 数据表
-
-- θ；
-- MP-/MP+；
-- P；
-- `ln(P/W)`。
-
-拟合 `ln(P/W)=-μθ`，可选择自由截距或理论过原点并比较。
-
-### C
-
-提供清晰的方向示意和两种临界状态输入；程序根据已确认的方向约定写方程并解 Mu、μu。公式必须在界面展示，避免“黑箱解”。
-
-## 10.2 霍尔效应及磁阻
-
-### 页面步骤
-
-1. 霍尔片几何与仪器；
-2. UH–I 数据；
-3. 霍尔参数；
-4. 载流子类型；
-5. 电磁铁标定；
-6. 可选磁场分布；
-7. 可选迁移率；
-8. 磁阻；
-9. 导出。
-
-### 霍尔表
-
-列：I、U1、U2、U3、U4、UH。
-
-`UH=(U1-U2+U3-U4)/4`。
-
-图：UH–I。
-
-拟合斜率 `b`：
-
-`KH=b/B`
-
-`RH=KH d`
-
-`n=1/(|e RH|)`；载流子类型保留 RH/UH 符号和讲义规定方向判断。
-
-### 磁场标定
-
-固定 I：输入 IM 与四换向电压，算 UH，再 `B=UH/(KH I)`；画 B–IM。
-
-### 磁阻
-
-`R(B)=UAC/IAC`；
-
-`MR=ΔR/R0`；
-
-同一页面提供：
-
-- MR–B 原图；
-- 低场 MR–B²；
-- 高场 MR–B；
-- 工作条件标记 AC 恒流、BD 是否短路。
-
-### 迁移率
-
-讲义要求自行设计，但没有给固定计算式；v1 标为“开放设计”：用户可以用自定义公式子模块，不预设唯一答案。
-
-## 10.3 准稳态热导
-
-### 参数
-
-- 样品厚度 2R / 半厚 R；
-- 横截面积 F；
-- 密度 ρ（讲义有机玻璃 1196 kg/m³，可预填且可编辑）；
-- 加热器电阻 r；
-- 加热前/后电压；
-- 冷端温度 tc；
-- 热电偶灵敏度 40 μV/℃。
-
-### 时序表
-
-τ、U1(t2-t1)、U2(t1-tc)。
-
-首行初始 U1 用作已定系统误差修正。
-
-### 准稳态区间选择
-
-图上刷选 `[τstart, τend]`。
-
-实时显示：
-
-- U1 均值与标准差；
-- U1 对时间斜率（应接近 0 的诊断）；
-- U2 线性拟合 r；
-- U2 斜率；
-- 温升速率。
-
-不自动替用户决定区间；可以给候选区间，但必须让用户确认。
-
-### 计算
-
-`Uheat=(Ubefore+Uafter)/2`
-
-`qc=Uheat²/(2Fr)`
-
-`Δt=(U1_corrected)/(40 μV/℃)`
-
-`dT/dτ=(slope_U2)/(40 μV/℃)`
-
-`λ=qcR/(2Δt)`
-
-`c=qc/[ρR(dT/dτ)]`
-
-修正模式：`qc' = 0.85 qc`，并列显示 λ'、c'。
-
-## 10.4 阻尼与受迫振动
-
-### 自由阻尼
-
-输入 `j, θj`，另表输入多次周期计时。
-
-自动派生 `ln θj`。
-
-拟合 `ln θj = a+bj`。
-
-从课程关系：
-
-`b=-βTd=-2πζ/sqrt(1-ζ²)`。
-
-解：
-
-`ζ = (-b)/sqrt(4π²+b²)`（取物理上正阻尼；实现中从原关系稳定推导并测试）。
-
-再：
-
-`ω0=2π/[Td sqrt(1-ζ²)]`
-
-`τ=1/(ζω0)`
-
-`Q=1/(2ζ)`。
-
-### 不确定度
-
-`Sb` 与 `Δb=t Sb`，ν=n-2；再通过偏导把 b → ζ，Td/ζ → ω0。
-
-周期计时仪器误差按课程公式。
-
-### 受迫振动
-
-每个阻尼档位：T、θ、φ。
-
-自动：`ω=2π/T`、`ω/ω0`。
-
-同图多系列：
-
-- θ–ω/ω0；
-- φ–ω/ω0。
-
-标记 φ≈π/2 的点作为共振诊断之一，但不替代用户实验判断。
-
-稳定时间工具：输入 τ，计算满足 `e^{-t/τ}<0.01` 的 `t>4.60517τ`。
-
-## 10.5 示波器、声速与电路
-
-### 示波器快速测量
-
-表单：
-
-- 纵向格数 × V/div → 电压幅度；
-- 横向格数 × s/div → 周期；
-- `f=1/T`；
-- 两信号 Δt/T → 相位差；
-- 峰峰值、峰值、正弦 RMS 转换（明确波形假设）。
-
-### 利萨如
-
-输入 nx、ny、已知频率 → 未知频率；提示端点 1/2 计数的课程规则。
-
-### 声速
-
-20 个同相点：n、x。
-
-拟合 `x=a+bn`，`λ=b`。
-
-`Δλ=t Sb`，ν=n-2。
-
-频率允许输入 `fmin/fmax` 并自动平均，也可直接输入 f；课程指定 `Δf=10Hz`。
-
-`v=fλ` 并传播不确定度。
-
-理论值：温度前后平均、湿度前后平均；饱和蒸气压按表格线性插值；计算湿空气声速；比较相对偏差。
-
-### RC / 共振电路
-
-独立子卡：充电、微分、RLC 共振计算器，便于选做任务。
-
-## 10.6 透镜焦距
-
-### 共轭法
-
-输入固定 P/Q，或直接输入 b；6 次 O1/O2。
-
-每行 `a=|O2-O1|`，取平均 a 或按实验定义统一处理；`f=(b²-a²)/(4b)`。
-
-默认 `Δa=0.25cm`、`Δb=0.20cm` 可编辑但标明来源。
-
-自动符号偏导传播。
-
-### 焦距仪
-
-参数：平行光管 `f≈400mm`（具体使用仪器标称值，不能硬编码不可编辑）、玻罗板线距 y；6 次 y1'/y2'；派生 `y'=|y1'-y2'|`。
-
-`fx=(y'/y)f`。
-
-y' 做重复测量 A 分量，并使用线距 B 分量 `√2×0.004mm`；f 相对不确定度 0.3%；y 的 0.02% 可按讲义默认忽略并允许打开。
-
-### 凹透镜自准
-
-每次 O2' / O2'' → `O2=(O2'+O2'')/2`；F2；`f=-|F2-O2|`。
-
-O2 与 F2 各重复 6 次。光具座单位置误差 0.05cm；通过正确的差值和平均关系传播。
-
-## 10.7 迈克尔逊干涉
-
-本实验主要是调节/观察型，因此 UI 与其他实验不同。
-
-### 光路流程 checklist
-
-- 激光水平；
-- 空间滤波；
-- 准直；
-- 分光；
-- 两反射镜回光；
-- 光斑重合；
-- 干涉条纹；
-- 点光源非定域；
-- 可选钠光等倾；
-- 白光干涉。
-
-每步展示讲义安全/操作要点，但不替代教师现场要求。
-
-### 计算工具
-
-- `λ=2Δd/Δk`；
-- 已知 λ 反算 Δd；
-- `δ=2d cosθ`；
-- `Δd=l(n-1)`，反算 l 或 n；
-- 不确定度传播。
-
-### 安全常驻条
-
-激光高压、激光直射眼睛、钠灯冷却、光学面、磁座双手操作。
-
----
-
-# 11. 作图与课程规范
-
-根据讲义/绪论课，作图导出前做自动检查：
-
-- 横轴必须是实际物理量/符号而不是裸 `x`（用户自定义公式除外）；
-- 纵轴同理；
-- 单位完整；
-- 数据点显式显示；
-- 拟合曲线与数据点区分；
-- 多曲线使用不同点符/线型；
-- 坐标范围不强制含原点；
-- 支持 1:1 / 1:2 / 1:5 / 1:10 类合理人工刻度的思想，但计算机图表可以自动 nice scale；
-- 必须有图名；
-- 必要参数可标注。
-
-导出：SVG 优先、PNG 次之。
-
----
-
-# 12. 报告与导出设计
-
-## 12.1 导出范围
-
-- 当前结果 Markdown；
-- 当前结果 LaTeX；
-- 完整数据处理 Markdown；
-- 表格 CSV；
-- 项目 JSON；
-- 图 SVG/PNG。
-
-## 12.2 “数据处理”Markdown 结构
-
-```markdown
-### 数据处理
-
-原始/整理数据表……
-
-采用公式：
-$$ ... $$
-
-代入：
-$$ ... $$
-
-拟合得到：...
-
-不确定度：...
-
-最终结果：
-$$ X=(...\pm...)\,\mathrm{unit} $$
-```
-
-2026 课程中，报告助手只重点生成第 5 项“数据处理”所需客观内容。阻尼实验可额外提供完整报告结构占位，但不自动生成虚构实验小结。
-
-## 12.3 来源说明
-
-导出可选附带：
-
-- 标准 profile；
-- 公式来源；
-- 修约规则；
-- 软件版本。
-
-这样未来更新公式后仍可复现旧报告。
-
----
-
-# 13. 公式与实验版本化
-
-每个公式/实验定义都必须有 `version`。
-
-项目保存：
-
-- `formulaId + formulaVersion`
-- `experimentId + experimentVersion`
-- `standardProfileId + standardProfileVersion`
-
-打开旧项目时：
-
-- 若版本一致直接加载；
-- 若版本改变，展示迁移摘要；
-- 严禁无提示地用新公式重新解释旧结果。
-
----
-
-# 14. 错误处理与诊断
-
-## 14.1 输入错误
-
-- 单位不兼容；
-- 数字格式错误；
-- log/sqrt 域错误；
-- 除零；
-- 数据点不足；
-- n=1 时不能计算样本标准差；
-- 回归 x 全相同；
-- 权重非正；
-- 协方差矩阵非法。
-
-## 14.2 数据诊断
-
-只给客观提示：
-
-- 线性拟合 |r| 较低；
-- 残差有明显趋势；
-- 单点偏离较大；
-- 热导选择区间 U1 仍有显著趋势；
-- 温升拟合不线性；
-- 结果单位量级可能错误。
-
-不自动删除“异常值”。必须由用户明确选择排除，并在项目审计记录中保存排除动作。
-
----
-
-# 15. 技术实现方案
-
-## 15.1 前端
-
-- React + TypeScript + Vite；
-- 现有 React + CSS 设计 token 与共享组件，不引入额外 UI 框架；
-- Hash Router，确保 GitHub Pages 深链可用；
-- Zustand 管全局 UI/当前项目；
-- Dexie 管项目持久化。
-
-## 15.2 数学
-
-- `mathjs`：解析、AST、符号导数、辅助单位；
-- `decimal.js`：精确十进制修约；
-- `jstat`：Student-t 分布量化；
-- 核心统计公式自行实现并用第三方库交叉测试，避免对黑箱库过度依赖。
-
-## 15.3 图
-
-ECharts + SVG renderer。
-
-需要自己包装：
-
-- error bar custom series；
-- 数据/拟合分层；
-- 课程图表检查；
-- SVG 导出。
-
-## 15.4 测试
-
-- Vitest；
-- fast-check；
-- Playwright；
-- GitHub Actions。
-
----
-
-# 16. 分阶段开发计划
-
-## Phase 0 — 工程骨架（1 个里程碑）
-
-交付：
-
-- Vite React TS；
-- GitHub Pages CI；
-- 主题/路由；
-- 标准 profile 类型；
-- IndexedDB 基础；
-- 数学核心测试框架。
-
-验收：main 分支可自动部署空壳应用。
-
-## Phase 1 — 数值内核与设置
-
-实现：
-
-- quantity/unit；
-- sigfig；
-- stats；
-- t quantile；
-- course uncertainty；
-- GB/T uncertainty 基础；
-- 设置页完整 profile 切换；
-- 资料示例 golden tests。
-
-验收：同一组输入在课程/GB/T 下产生预期不同结果，UI 明确解释差异。
-
-## Phase 2 — 数据表与拟合/作图
-
-实现：
-
-- spreadsheet grid；
-- TSV/CSV paste；
-- OLS；
-- fit uncertainty；
-- graph；
-- 图导出；
-- Markdown 表格。
-
-验收：绪论课线性拟合例可完整复现。
-
-## Phase 3 — 公式工作台
-
-实现：
-
-- FormulaDefinition；
-- 搜索；
-- 目标变量；
-- 单位；
-- 自动偏导传播；
-- Markdown/LaTeX；
-- source provenance。
-
-先录入所有“课程基础 + 7 实验”公式。
-
-## Phase 4 — 第一批实验模板
-
-优先：
-
-1. 霍尔；
-2. 透镜焦距；
-3. 阻尼。
-
-原因：三者合起来覆盖多列表格、换向组合、拟合、间接量、不确定度、重复测量和时序参数。
-
-验收：可以从空项目一路生成可复制数据处理结果。
-
-## Phase 5 — 其余实验
-
-- 热导；
-- 声速/示波器；
-- 摩擦；
-- 迈克尔逊。
-
-特别处理热导的区间选择和迈克尔逊的 checklist UX。
-
-## Phase 6 — 通用数据处理工具
-
-- 加权平均；
-- 相关/协方差；
-- 插值；
-- 自定义不确定度；
-- 科学计算器；
-- 高级 GB/T。
-
-## Phase 7 — PWA、移动优化、导出完善
-
-- 离线；
-- 手机录数；
-- 打印布局；
-- 项目导入导出；
-- 性能优化。
-
-## Phase 8 — 通用大学物理公式扩展
-
-逐类添加 mechanics / thermal / electromagnetism / optics 等，每个公式必须带测试、单位与条件。
-
----
-
-# 17. 核心验收测试清单
-
-## 17.1 课程规则
-
-- [ ] P=0.95 t 因子；
-- [ ] n-1 与拟合 n-2 自由度区分；
-- [ ] ΔB=Δ仪；
-- [ ] ΔA<Δ仪/3 简化；
-- [ ] 单次测量；
-- [ ] 已定系统误差修正；
-- [ ] 不确定度 2 位 / 首位≥3 可 1 位；
-- [ ] 相对不确定度 2 位；
-- [ ] 最终值末位对齐；
-- [ ] 中间值不提前修约。
-
-## 17.2 GB/T
-
-- [ ] A 类标准不确定度；
-- [ ] 矩形 / 三角 / 正态 B 类；
-- [ ] covariance；
-- [ ] uc；
-- [ ] νeff；
-- [ ] U/k；
-- [ ] 报告语义正确。
-
-## 17.3 实验
-
-- [ ] 摩擦 A/B/C；
-- [ ] 霍尔 4 换向；
-- [ ] 热导准稳态选择；
-- [ ] 阻尼 lnθ-j；
-- [ ] 声速 20 点；
-- [ ] 透镜三种主要方法；
-- [ ] 迈克尔逊计算 + 流程安全。
-
----
-
-# 18. 首版页面清单
-
-路由建议：
-
-```text
-/#/
-/#/experiments
-/#/experiments/:experimentId/new
-/#/project/:projectId
-/#/formulas
-/#/formulas/:formulaId
-/#/tools/statistics
-/#/tools/regression
-/#/tools/uncertainty
-/#/tools/weighted-mean
-/#/tools/calculator
-/#/settings
-/#/sources
-```
-
-GitHub Pages 使用 hash 路由以降低部署复杂度。
-
----
-
-# 19. 首版组件清单
-
-- `StandardProfileBadge`
-- `StandardSelector`
-- `QuantityInput`
-- `MeasurementInput`
-- `UncertaintyInput`
-- `UnitSelect`
-- `SigFigPreview`
-- `FormulaCard`
-- `FormulaCalculator`
-- `CalculationSteps`
-- `UncertaintyBreakdown`
-- `ContributionChart`
-- `EditableDataGrid`
-- `RegressionPanel`
-- `PhysicsPlot`
-- `PlotChecklist`
-- `ExperimentStepper`
-- `ResultInspector`
-- `SourceBadge`
-- `SafetyNotice`
-- `ExportDialog`
-- `ProjectAutosaveIndicator`
-
----
-
-# 20. 首版 formula registry 最低条目
-
-必须在 v1 release 前全部落地并通过测试：
-
-### 测量
-
-`mean`, `residual`, `sample-std`, `sem`, `course-type-a`, `course-type-b`, `course-total-uncertainty`, `relative-uncertainty`, `indirect-rss`, `linear-regression`, `fit-correlation`, `fit-parameter-uncertainty`, `half-range`。
-
-### 仪器
-
-`analog-meter-error`, `digital-meter-reading-digits`, `digital-meter-reading-range`, `digital-meter-combined`, `resistance-box-error`。
-
-### 摩擦
-
-`weight-from-mass`, `capstan`。
-
-### 霍尔
-
-`hall-voltage`, `hall-four-direction-combination`, `hall-coefficient`, `hall-sensitivity`, `carrier-density`, `magnetoresistance`。
-
-### 热导
-
-`fourier-law`, `quasi-steady-lambda`, `quasi-steady-specific-heat`, `heat-flux-electrical`, `thermocouple-linear`。
-
-### 振动
-
-`damped-omega`, `damped-period`, `damping-ratio`, `time-constant`, `quality-factor`, `log-decrement`, `forced-amplitude`, `forced-phase`, `resonance-frequency`, `zeta-from-fit-slope`。
-
-### 示波器/声速/电路
-
-`scope-voltage-div`, `scope-period-div`, `frequency-period`, `phase-time`, `lissajous-frequency`, `sound-speed`, `ideal-gas-sound-speed`, `dry-air-sound-speed`, `humid-air-sound-speed`, `rc-charge`, `rc-differentiator`, `lc-resonance`。
-
-### 光学
-
-`thin-lens`, `magnification`, `bessel-focal-length`, `focimeter`, `concave-autocollimation`, `michelson-equal-inclination`, `michelson-wavelength`, `michelson-white-light-plate`。
-
-### GB/T
-
-`standard-uncertainty-type-a`, `rectangular-standard-uncertainty`, `triangular-standard-uncertainty`, `normal-coverage-to-standard`, `combined-standard-uncertainty-independent`, `combined-standard-uncertainty-correlated`, `effective-dof`, `expanded-uncertainty`。
-
----
-
-# 21. 开发时特别容易出错的点
-
-1. `15` 与 `15.0` 不能等价对待有效数字元数据。
-2. 课程 Δ 与 GB/T u/U 不同，不能共享同一含义的字段名。
-3. `℃` 的温度与温差转换不同。
-4. 霍尔 mV/mA/mT 的数量级非常容易错，内部统一 SI。
-5. 热导 c 的公式分母包含 `ρR·dT/dτ`，不要漏掉半厚度 R。
-6. 焦距仪的 0.004mm 是“位置”误差，两位置作差的 B 分量为 `√2×0.004mm`。
-7. 声速拟合的自由度是 n-2，不是 n-1。
-8. 阻尼斜率 b 为负，ζ 是正值；求解时要处理符号。
-9. 仪器“分辨率”不能自动当作“仪器误差限”。
-10. 相关系数 r 和 R² 不可互相替代；课程强调 r。
-11. 不应自动删除异常点或偷偷“优化”学生数据。
-12. 不能在中间步骤按显示位数截断。
-
----
-
-# 22. 项目首个可用版本（MVP）的判定
-
-MVP 不是“能打开网页”，而是必须同时完成：
-
-- 设置页 3 个正式标准 profile + custom；
-- 完整数值/单位/有效数字/课程不确定度核心；
-- 基础 GB/T 模式；
-- 数据表、OLS、图表；
-- 公式工作台及课程相关公式；
-- 7 个 2026 实验模板；
-- Markdown/LaTeX/CSV/JSON/SVG 导出；
-- 本地保存；
-- GitHub Pages 部署；
-- golden tests；
-- 手机可用。
-
-完成这些之后再扩大“大学物理公式大全”的覆盖面。
-
----
-
-# 23. 推荐的第一轮实现顺序（实际编码顺序）
-
-1. `standard-profile` 类型 + 设置页；
-2. `NumericDatum` / 单位 / sigfig；
-3. statistics；
-4. Student-t；
-5. course uncertainty；
-6. GB/T basic uncertainty；
-7. formula AST；
-8. OLS；
-9. EditableDataGrid；
-10. Plot；
-11. Formula registry；
-12. 霍尔实验；
-13. 透镜实验；
-14. 阻尼实验；
-15. 热导；
-16. 声速/示波器；
-17. 摩擦；
-18. 迈克尔逊；
-19. 导出；
-20. PWA/移动端。
-
-此顺序优先解决“算对”再解决“覆盖多”，可最大程度减少后续实验模板重复返工。
-
+- 侧栏展开约 216px、折叠约 60px，收起按钮不再抢视觉焦点；
+- 侧栏设置入口已从 `2026 A(1)` 徽章改为齿轮，标准信息在内容区仍清晰可查；
+- 用户可以在设置中持久化改变字号，140% 应用内字号和 200% 浏览器 zoom 均无关键功能损失；
+- 课程/GB/T 规则摘要中的数学表达全部由 KaTeX/MathML 渲染；
+- 现有课程不确定度计算数值完全不变；
+- formula schema 已完成一次性清理迁移，不再保留 `result-units.ts` 双数据源；
+- 大学物理 15 个主干领域覆盖完成，每个核心 computable 公式有单位、条件、provenance 和测试；
+- 公式页不会一次渲染几百个 KaTeX 卡片，公式 route 不进入首页初始 chunk；
+- ECharts 使用按需导入且导出能力不回退；
+- typecheck、unit/property/golden tests、Playwright、production build 全部通过；
+- README / AGENTS / plan 与当前实现一致，不再宣称错误的硬编码公式数量；
+- 无死代码、无废弃兼容层、无第二套 formula schema、无新增不必要运行时依赖。

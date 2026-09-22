@@ -5,7 +5,7 @@ import {
 } from '../instruments';
 import { ols } from '../core/regression';
 import { linearInterpolation } from '../core/statistics';
-import { E_CHARGE, R_GAS } from '../formulas/types';
+import { ELEMENTARY_CHARGE as E_CHARGE, MOLAR_GAS_CONSTANT as R_GAS } from '../physics/constants';
 
 const PI = Math.PI;
 

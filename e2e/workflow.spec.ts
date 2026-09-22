@@ -17,6 +17,9 @@ test('计算器在选区插入，重用历史并保留角度模式', async ({ pa
 
 test('非法不确定度阻止公式计算，修正后可恢复', async ({ page }) => {
   await page.goto('/#/formulas/hall-voltage');
+  // 公式页为路由级 lazy：先等计算器输入框挂载
+  const firstInput = page.locator('.input-unit input').first();
+  await firstInput.waitFor({ state: 'visible' });
   for (const input of await page.locator('.input-unit input').all()) await input.fill('1');
   const uncertainty = page.getByRole('textbox', { name: /的不确定度/ }).first();
   await uncertainty.fill('-0.1');
@@ -155,6 +158,6 @@ test('项目筛选可恢复，手机项目页保持单列宽度', async ({ page 
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({ path: '/tmp/pea-projects-mobile.png', fullPage: true });
   await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(page.locator('.app-main')).toHaveCSS('margin-left', '248px');
+  await expect(page.locator('.app-main')).toHaveCSS('margin-left', '216px');
   await page.screenshot({ path: '/tmp/pea-projects-desktop.png', fullPage: true });
 });

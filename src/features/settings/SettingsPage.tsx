@@ -23,6 +23,14 @@ const THEME_TABS = [
   { id: 'dark', label: '深色' },
 ];
 
+const FONT_SCALE_TABS: { id: string; label: string }[] = [
+  { id: '0.9', label: '90%' },
+  { id: '1', label: '100%' },
+  { id: '1.1', label: '110%' },
+  { id: '1.25', label: '125%' },
+  { id: '1.4', label: '140%' },
+];
+
 const FEATURE_FLAGS = [
   ['showSafety', '显示实验安全提示', '实验工作台顶部展示该实验的安全须知'],
   ['showProvenance', '显示公式来源标注', '公式与结果显示 provenance（资料原式 / 由资料推导 / 通用扩展）'],
@@ -198,13 +206,21 @@ export function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="外观" icon="sun" sub="亮/暗主题均遵循 WCAG AA 对比度">
+      <Panel title="外观" icon="sun" sub="亮/暗主题均遵循 WCAG AA 对比度；字号档位改变全站文字，图标与边框保持不变">
         <Field label="主题" hint="「跟随系统」随操作系统的亮暗设置自动切换">
           <Tabs
             ariaLabel="主题"
             tabs={THEME_TABS}
             active={settings.theme}
             onChange={(id) => settings.set('theme', id as Preferences['theme'])}
+          />
+        </Field>
+        <Field label="界面字号" hint="立即生效并保存；正文、按钮、表格与公式随档位缩放">
+          <Tabs
+            ariaLabel="界面字号"
+            tabs={FONT_SCALE_TABS}
+            active={String(settings.fontScale)}
+            onChange={(id) => settings.set('fontScale', Number(id) as Preferences['fontScale'])}
           />
         </Field>
       </Panel>
