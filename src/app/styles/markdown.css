@@ -60,28 +60,30 @@
 }
 
 .md-block ul:not(.md-task-list),
-.md-list {
+ul.md-list {
   list-style: none;
   padding-left: 2px;
 }
 .md-block ul:not(.md-task-list) > li,
-.md-list > li {
+ul.md-list > li {
   position: relative;
   padding-left: 16px;
   margin-top: 3px;
 }
 .md-block ul:not(.md-task-list) > li::before,
-.md-list > li::before {
+ul.md-list > li::before {
   content: "–";
   position: absolute;
   left: 2px;
   color: var(--ink-3);
 }
-.md-block ol {
+.md-block ol,
+ol.md-list {
   list-style: decimal;
   padding-left: 22px;
 }
-.md-block ol > li {
+.md-block ol > li,
+ol.md-list > li {
   margin-top: 3px;
 }
 .md-task-list > li {
@@ -143,3 +145,20 @@
 .katex-display {
   margin: 6px 0;
 }
+
+/* 数学保持完整排版，仅在公式内部滚动，避免撑宽卡片和移动页面。 */
+.tex { max-width: 100%; }
+.tex-inline { display: inline-block; vertical-align: middle; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.tex-display { display: block; overflow-x: auto; padding: 4px 0; }
+.tex-display .katex-display { text-align: left; }
+.tex-display .katex-display > .katex { text-align: left; }
+.md-math-block, .formula-block { min-width: 0; max-width: 100%; }
+.md-block { min-width: 0; }
+
+.md-block { line-height: 1.75; }
+.md-inline { min-width: 0; }
+.md-block > :first-child { margin-top: 0; }
+.md-block > :last-child { margin-bottom: 0; }
+.md-block blockquote { padding: 8px 12px; background: var(--paper-sunken); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.md-block li + li, .md-list li + li { margin-top: 5px; }
+.md-inline code { box-decoration-break: clone; -webkit-box-decoration-break: clone; }

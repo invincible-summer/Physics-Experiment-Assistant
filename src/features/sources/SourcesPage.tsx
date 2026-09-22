@@ -68,19 +68,19 @@ export function SourcesPage() {
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>关于与规则</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>项目使命、资料与规则优先级、标准配置隔离原则、公式来源统计，以及学术诚信与验证边界。</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>项目使命、资料与规则优先级、标准配置隔离原则、公式来源统计，以及学术诚信与验证边界。</MarkdownBlock>
+        </div>
       </header>
 
       <Panel title="项目使命">
         <MarkdownBlock>{MISSION_MD}</MarkdownBlock>
-        <p className="small muted" style={{ marginTop: 10 }}>
-          <MarkdownInline>{`当前内容规模：${VISIBLE_FORMULAS.length} 个公式 · ${listExperiments().length} 个实验模板。`}</MarkdownInline>
-        </p>
+        <div className="small muted" style={{ marginTop: 10 }}>
+          <MarkdownBlock>{`当前内容规模：${VISIBLE_FORMULAS.length} 个公式 · ${listExperiments().length} 个实验模板。`}</MarkdownBlock>
+        </div>
       </Panel>
 
-      <Panel title="资料与规则优先级" sub="依据 AGENTS §2 的默认规则优先级">
+      <Panel title="资料与规则优先级" sub="发生规则差异时，按以下顺序核对资料">
         <MarkdownBlock>{PRIORITY_MD}</MarkdownBlock>
       </Panel>
 
@@ -93,7 +93,7 @@ export function SourcesPage() {
                 <summary>
                   <MarkdownInline>{`**${p.name}**`}</MarkdownInline>
                   <Badge variant={kind.variant}>{kind.label}</Badge>
-                  <span className="small muted mono">{p.shortName}</span>
+                  <span className="small muted mono"><MarkdownInline>{p.shortName}</MarkdownInline></span>
                 </summary>
                 <div className="fold-body stack" style={{ gap: 8 }}>
                   <MarkdownBlock className="small muted">{p.description}</MarkdownBlock>
@@ -130,9 +130,9 @@ export function SourcesPage() {
             ))}
           </tbody>
         </table>
-        <p className="small muted" style={{ marginTop: 8 }}>
-          <MarkdownInline>每个公式卡片均以徽章显示其来源状态；`experimental` 公式不进入默认展示，因此上表数量为零属预期。</MarkdownInline>
-        </p>
+        <div className="small muted" style={{ marginTop: 8 }}>
+          <MarkdownBlock>每个公式卡片均以徽章显示其来源状态；`experimental` 公式不进入默认展示，因此上表数量为零属预期。</MarkdownBlock>
+        </div>
       </Panel>
 
       <Panel title="学术诚信边界">
@@ -143,9 +143,9 @@ export function SourcesPage() {
         <MarkdownList className="small" items={TESTING_ITEMS} />
       </Panel>
 
-      <p className="small muted">
-        <MarkdownInline>**隐私：**全部实验数据仅保存在本浏览器（IndexedDB / localStorage），不上传任何服务器；清空本地数据需二次确认。</MarkdownInline>
-      </p>
+      <div className="small muted">
+        <MarkdownBlock>**隐私：**实验数据仅保存在当前浏览器，不会上传。请定期导出项目备份；清空本地数据前需要再次确认。</MarkdownBlock>
+      </div>
     </div>
   );
 }

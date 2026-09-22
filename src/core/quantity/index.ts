@@ -151,6 +151,8 @@ const UNITS: Record<string, UnitDef> = Object.fromEntries(
     U('W/(m·K)', { L: 1, M: 1, T: -3, Θ: -1 }, 1, '瓦每米开', 'thermal'),
     // 比热 J/(kg·K)
     U('J/(kg·K)', { L: 2, T: -2, Θ: -1 }, 1, '焦每千克开', 'thermal'),
+    // 霍尔灵敏度 KH = RH/d，量纲与 V/(A·T) 相同
+    U('m2/C', { L: 2, T: -1, I: -1 }, 1, '平方米每库仑', 'electronic'),
     // 霍尔系数 m³/C
     U('m3/C', { L: 3, T: -1, I: -1 }, 1, '立方米每库仑', 'electronic'),
     U('cm3/C', { L: 3, T: -1, I: -1 }, 1e-6, '立方厘米每库仑', 'electronic'),

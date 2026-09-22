@@ -1,8 +1,8 @@
 /** 科学计算器：core/expression 安全 AST 求值（无 eval），支持角度/弧度切换、Ans 回填与最近 20 条历史。 */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { compileExpression, evaluateExpression } from '../../core/expression';
 import { Badge, Button, CopyButton, EmptyState, Panel } from '../../components/ui';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { useSettings } from '../../stores/settings';
 import { useToolDraft } from './use-tool-draft';
 
@@ -20,7 +20,7 @@ type EvalResult = { value: number } | { error: string };
 
 interface CalcDraft {
   text: string;
-  history: { expr: string; value: string }[];
+  history: { expr: string; value: string; angleUnit?: 'deg' | 'rad' }[];
 }
 
 export function CalculatorPage() {
@@ -30,7 +30,8 @@ export function CalculatorPage() {
   const { text, history } = draft;
   const setText = (v: string | ((t: string) => string)) =>
     setDraft((d) => ({ ...d, text: typeof v === 'function' ? v(d.text) : v }));
-  const [ans, setAns] = useState('');
+  const [ans, setAns] = useState(history[0]?.value ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const result = useMemo<EvalResult | null>(() => {
     const src = text.trim();
@@ -46,11 +47,21 @@ export function CalculatorPage() {
     }
   }, [text, angleUnit]);
 
-  const append = (s: string) => setText((t) => t + s);
+  const edit = (insert: string, backspace = false) => {
+    const start = inputRef.current?.selectionStart ?? text.length;
+    const end = inputRef.current?.selectionEnd ?? start;
+    const from = backspace && start === end ? Math.max(0, start - 1) : start;
+    setText(text.slice(0, from) + insert + text.slice(end));
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(from + insert.length, from + insert.length);
+    });
+  };
+  const append = (s: string) => edit(s);
 
   const commit = (replace: boolean) => {
     if (!result || !('value' in result)) return;
-    const entry = { expr: text.trim(), value: String(result.value) };
+    const entry = { expr: text.trim(), value: String(result.value), angleUnit };
     setAns(entry.value);
     setDraft((d) => ({ ...d, history: [entry, ...d.history].slice(0, 20), text: replace ? entry.value : d.text }));
   };
@@ -69,15 +80,16 @@ export function CalculatorPage() {
             <Badge variant="accent">{`角度：${angleUnit === 'deg' ? 'deg（°）' : 'rad（弧度）'}`}</Badge>
           </Button>
         </div>
-        <p className="page-lead">
-          <MarkdownInline>{'安全 AST 求值（无 `eval`）。支持四则、幂 `^`、`sqrt`、`sin/cos/tan`、`ln/log`、`exp/abs/atan`、常量 `pi`/`e` 与科学记数 `E`；三角函数按当前角度模式解释。'}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{'输入表达式即可预览结果，按 **Enter** 或 **=** 保存到历史。\n\n- **常用运算**：四则、幂 `^`、开方 `sqrt`、指数 `exp` 与对数 `ln/log`。\n- **三角函数**：`sin/cos/tan`、`atan`；计算前请确认右上角的角度或弧度模式。\n- **常量与科学记数**：`pi`、`e`、`E`；点击 **Ans** 可插入上次结果。'}</MarkdownBlock>
+        </div>
       </header>
 
       <div className="stack-lg" style={{ maxWidth: 620 }}>
         <Panel title="表达式" sub="Enter 计算并记入历史；= 记入历史并回填结果；Ans 插入上次结果">
           <input
             className="input mono"
+            ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') commit(false); }}
@@ -94,13 +106,14 @@ export function CalculatorPage() {
               String(result.value)
             )}
           </div>
+          {result && 'value' in result && <div className="row-right" style={{ marginTop: 8 }}><CopyButton text={String(result.value)} label="复制当前结果" /></div>}
           <div className="calc-pad">
             {PAD.map((k) => (
               <Button key={k} className="calc-key" onClick={() => append(k)}>
-                {k.replace('(', '')}
+                {k.length > 1 ? k.replace('(', '') : k}
               </Button>
             ))}
-            <Button className="calc-key" title="退格" onClick={() => setText((t) => t.slice(0, -1))}>⌫</Button>
+            <Button className="calc-key" title="退格" onClick={() => edit('', true)}>⌫</Button>
             <Button className="calc-key" title="清空输入" onClick={() => setText('')}>C</Button>
             <Button
               className="calc-key"
@@ -110,7 +123,7 @@ export function CalculatorPage() {
             >
               Ans
             </Button>
-            <Button variant="primary" className="calc-key" style={{ gridColumn: 'span 2' }} onClick={() => commit(true)}>=</Button>
+            <Button variant="primary" className="calc-key" style={{ gridColumn: 'span 2' }} disabled={!result || 'error' in result} onClick={() => commit(true)}>=</Button>
           </div>
         </Panel>
 
@@ -126,7 +139,14 @@ export function CalculatorPage() {
               {history.map((h, i) => (
                 <div key={i} className="row-between">
                   <span className="mono small wrap"><MarkdownInline>{`\`${h.expr}\` = **${h.value}**`}</MarkdownInline></span>
-                  <CopyButton text={h.value} label="复制结果" />
+                  <div className="row">
+                    <Button size="sm" onClick={() => {
+                      setText(h.expr);
+                      if (h.angleUnit) set('angleUnit', h.angleUnit);
+                      inputRef.current?.focus();
+                    }}>重新计算</Button>
+                    <CopyButton text={h.value} label="复制结果" />
+                  </div>
                 </div>
               ))}
             </div>

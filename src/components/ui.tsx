@@ -7,7 +7,8 @@ import { ButtonHTMLAttributes, ReactNode, useEffect, useRef, useState } from 're
 import { Provenance, PROVENANCE_LABELS } from '../standards/types';
 import { Icon, IconName } from './Icon';
 import { Tex } from './katex';
-import { MarkdownInline, MarkdownList, markdownInlineNode } from './Markdown';
+import { copyText } from './clipboard';
+import { MarkdownBlock, MarkdownInline, MarkdownList, markdownBlockNode, markdownInlineNode } from './Markdown';
 
 /* ---------- 按钮 ---------- */
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
@@ -25,7 +26,7 @@ export function Button({ variant = 'default', size = 'md', className = '', type 
   return (
     <button type={type} className={cls} {...rest}>
       {icon && <Icon name={icon} size={size === 'sm' ? 14 : 15} />}
-      {markdownInlineNode(children, false)}
+      <span className="btn-label">{markdownInlineNode(children, false)}</span>
     </button>
   );
 }
@@ -68,8 +69,8 @@ export function Panel({ title, sub, actions, children, id, className = '', icon,
       {(title || sub || actions) && (
         <div className="panel-head">
           <div className="panel-heading">
-            {title && <div className="panel-title">{icon && <Icon name={icon} size={16} />}{markdownInlineNode(title)}</div>}
-            {sub && <div className="panel-sub">{markdownInlineNode(sub)}</div>}
+            {title && <div className="panel-title">{icon && <Icon name={icon} size={16} />}<span>{markdownInlineNode(title)}</span></div>}
+            {sub && <div className="panel-sub">{markdownBlockNode(sub)}</div>}
           </div>
           {actions && <div className="panel-actions">{actions}</div>}
         </div>
@@ -89,8 +90,8 @@ const NOTICE_ICON: Record<NoticeVariant, IconName> = {
   danger: 'alert',
 };
 
-export function Notice({ variant = 'info', title, children, className = '' }: {
-  variant?: NoticeVariant; title?: string; children: ReactNode; className?: string;
+export function Notice({ variant = 'info', title, children, actions, className = '' }: {
+  variant?: NoticeVariant; title?: string; children: ReactNode; actions?: ReactNode; className?: string;
 }) {
   return (
     <div
@@ -104,8 +105,10 @@ export function Notice({ variant = 'info', title, children, className = '' }: {
             <MarkdownInline>{title}</MarkdownInline>
           </div>
         )}
-        {children}
+        <div className="n-content">{typeof children === 'string' || typeof children === 'number'
+          ? <MarkdownBlock>{children}</MarkdownBlock> : markdownInlineNode(children)}</div>
       </div>
+      {actions && <div className="notice-actions">{actions}</div>}
     </div>
   );
 }
@@ -138,16 +141,11 @@ export function CopyButton({ text, label = '复制', onCopied, size = 'sm' }: {
     <Button
       size={size}
       onClick={async () => {
-        const content = typeof text === 'function' ? text() : text;
         try {
-          await navigator.clipboard.writeText(content);
+          await copyText(typeof text === 'function' ? text() : text);
         } catch {
-          const ta = document.createElement('textarea');
-          ta.value = content;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
+          toast('复制失败：请全选内容后手动复制，或下载文件。');
+          return;
         }
         setDone(true);
         onCopied?.();
@@ -227,18 +225,39 @@ export function Menu({ trigger, items, onSelect, size = 'sm', variant = 'default
 export function Modal({ open, onClose, title, children, wide }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean;
 }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const focusable = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') ?? [])
+      .filter(el => el.getClientRects().length > 0);
+    (focusable()[0] ?? dialog.current)?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') { e.preventDefault(); close.current(); }
+      if (e.key === 'Tab') {
+        const items = focusable();
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (!first) { e.preventDefault(); dialog.current?.focus(); }
+        else if (e.shiftKey && (document.activeElement === first || !dialog.current?.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || !dialog.current?.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = oldOverflow;
+      previous?.focus({ preventScroll: true });
+    };
+  }, [open]);
   if (!open) return null;
   return (
     <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`modal-card${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={dialog} tabIndex={-1} className={`modal-card${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
           <span className="modal-title"><MarkdownInline>{title}</MarkdownInline></span>
           <Button size="sm" variant="ghost" onClick={onClose}>关闭</Button>
@@ -255,7 +274,7 @@ export function EmptyState({ title, hint, icon, children }: { title: string; hin
     <div className="empty-state">
       {icon && <div className="empty-icon"><Icon name={icon} size={20} /></div>}
       <div className="empty-title"><MarkdownInline>{title}</MarkdownInline></div>
-      {hint && <div className="small muted"><MarkdownInline>{hint}</MarkdownInline></div>}
+      {hint && <div className="small muted"><MarkdownBlock>{hint}</MarkdownBlock></div>}
       {children && <div className="empty-actions">{children}</div>}
     </div>
   );
@@ -302,8 +321,8 @@ export function Field({ label, hint, error, children }: {
     <div className="field">
       {label && <div className="field-label">{markdownInlineNode(label)}</div>}
       {children}
-      {error && <div className="field-error"><MarkdownInline>{error}</MarkdownInline></div>}
-      {!error && hint && <div className="field-help"><MarkdownInline>{hint}</MarkdownInline></div>}
+      {error && <div className="field-error"><MarkdownBlock>{error}</MarkdownBlock></div>}
+      {!error && hint && <div className="field-help"><MarkdownBlock>{hint}</MarkdownBlock></div>}
     </div>
   );
 }
@@ -316,25 +335,30 @@ let toasts: Toast[] = [];
 
 export function toast(text: string): void {
   const t = { id: ++toastId, text };
-  toasts = [...toasts, t];
+  toasts = [...toasts, t].slice(-3);
   toastListeners.forEach((l) => l(toasts));
   setTimeout(() => {
     toasts = toasts.filter((x) => x.id !== t.id);
     toastListeners.forEach((l) => l(toasts));
-  }, 2600);
+  }, Math.min(15000, Math.max(5000, text.length * 100)));
 }
 
 export function ToastRegion() {
-  const [list, setList] = useState<Toast[]>([]);
+  const [list, setList] = useState<Toast[]>(toasts);
   useEffect(() => {
     const l = (t: Toast[]) => setList([...t]);
     toastListeners.add(l);
     return () => { toastListeners.delete(l); };
   }, []);
-  if (list.length === 0) return null;
   return (
-    <div className="toast-region" role="status">
-      {list.map((t) => <div key={t.id} className="toast"><MarkdownInline>{t.text}</MarkdownInline></div>)}
+    <div className="toast-region" role="status" aria-live="polite" aria-relevant="additions" aria-label="操作反馈">
+      {list.map((t) => <div key={t.id} className="toast">
+        <div className="toast-content"><MarkdownBlock>{t.text}</MarkdownBlock></div>
+        <Button size="sm" variant="ghost" onClick={() => {
+          toasts = toasts.filter((item) => item.id !== t.id);
+          toastListeners.forEach((listener) => listener(toasts));
+        }}>关闭</Button>
+      </div>)}
     </div>
   );
 }

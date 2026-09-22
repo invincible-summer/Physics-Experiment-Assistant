@@ -11,7 +11,7 @@ export const HALL_FORMULAS: FormulaDefinition[] = [
     latex: 'U_H = K_H\\, I\\, B = \\frac{R_H}{d}\\, I\\, B',
     expression: 'KH * I * B',
     variables: [
-      { name: 'KH', label: '霍尔灵敏度 KH', unit: 'm3/C', note: 'SI：m³/(A·T) ≡ m³/C' },
+      { name: 'KH', label: '霍尔灵敏度 KH', unit: 'm2/C', note: 'SI：V/(A·T) ≡ m²/C；KH = RH/d'  },
       { name: 'I', label: '工作电流 I', unit: 'A' },
       { name: 'B', label: '磁感应强度 B', unit: 'T' },
     ],
@@ -109,7 +109,7 @@ export const THERMAL_FORMULAS: FormulaDefinition[] = [
     expression: 'lam * dt / dx',
     variables: [
       { name: 'lam', label: '热导率 λ', unit: 'W/(m·K)' },
-      { name: 'dt', label: '温差 |Δt|', unit: 'K' },
+      { name: 'dt', label: '温差 |Δt|', unit: 'K', quantityKind: 'temperature-difference' },
       { name: 'dx', label: '厚度 Δx', unit: 'm' },
     ],
     solveFor: ['lam', 'dt', 'dx'],
@@ -125,7 +125,7 @@ export const THERMAL_FORMULAS: FormulaDefinition[] = [
     variables: [
       { name: 'qc', label: '加热面热流密度 qc', unit: 'W/m2' },
       { name: 'R', label: '样品半厚度 R', unit: 'm' },
-      { name: 'dt', label: '上下两面温差 Δt', unit: 'K' },
+      { name: 'dt', label: '上下两面温差 Δt', unit: 'K', quantityKind: 'temperature-difference' },
     ],
     solveFor: ['dt', 'qc'],
     solutions: { dt: 'qc * R / (2 * lam)', qc: '2 * lam * dt / R' },

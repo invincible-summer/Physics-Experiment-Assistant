@@ -12,7 +12,8 @@ describe('Markdown UI renderer', () => {
     expect(html).toContain('<em>强调</em>');
     expect(html).toContain('<code>code</code>');
     expect(html).toContain('href="https://example.com"');
-    expect(html).toContain('katex');
+    expect(html).toContain('tex-inline');
+    expect(html).toContain('x^2');
   });
 
   it('keeps Markdown link labels but disables anchors inside controls', () => {
@@ -83,6 +84,26 @@ describe('Markdown UI renderer', () => {
     expect(html).toContain('<strong>说明</strong>');
     expect(html).toContain('<pre');
     expect(html).toContain('a &lt; b');
-    expect(html).toContain('katex-display');
+    expect(html).toContain('tex-display');
   });
+});
+
+it('recognizes single-line display math and preserves incomplete delimiters', () => {
+  for (const children of ['$$x^2$$', String.raw`\[x^2\]`]) {
+    const html = renderToStaticMarkup(createElement(MarkdownBlock, { children }));
+    expect(html).toContain('tex-display');
+    expect(html).not.toContain('$$');
+  }
+  const html = renderToStaticMarkup(createElement(MarkdownBlock, { children: '$$\nx^2\n\n## 后续说明' }));
+  expect(html).toContain('$$');
+  expect(html).toContain('<h2>后续说明</h2>');
+});
+
+
+it('keeps escaped pipes inside a report table cell', () => {
+  const html = renderToStaticMarkup(createElement(MarkdownBlock, {
+    children: '| 项目 | 内容 |\n|---|---|\n| 作者 | A\\|B |',
+  }));
+  expect(html).toContain('A|B');
+  expect((html.match(/<td/g) ?? []).length).toBe(2);
 });

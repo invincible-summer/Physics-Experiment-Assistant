@@ -40,8 +40,7 @@ export function MarkdownInline({
     () => parseInline(source, { allowLinks, allowMath }),
     [source, allowLinks, allowMath],
   );
-  if (className) return <span className={`md-inline ${className}`}>{nodes}</span>;
-  return <>{nodes}</>;
+  return <span className={`md-inline${className ? ` ${className}` : ''}`}>{nodes}</span>;
 }
 
 export function MarkdownBlock({
@@ -71,7 +70,7 @@ export function MarkdownList({
   return (
     <Tag className={`md-list${className ? ` ${className}` : ''}`}>
       {items.map((item, i) => (
-        <li key={i}><MarkdownInline>{item}</MarkdownInline></li>
+        <li key={i}><MarkdownBlock>{item}</MarkdownBlock></li>
       ))}
     </Tag>
   );
@@ -88,13 +87,22 @@ export function markdownInlineNode(node: ReactNode, allowLinks = true): ReactNod
   return node;
 }
 
+/** Block-capable copy for shared descriptions; existing React elements are preserved. */
+export function markdownBlockNode(node: ReactNode): ReactNode {
+  if (typeof node === 'string' || typeof node === 'number') {
+    return <MarkdownBlock>{node}</MarkdownBlock>;
+  }
+  if (Array.isArray(node)) return Children.map(node, markdownBlockNode);
+  return node;
+}
+
 interface ParseOptions {
   allowLinks: boolean;
   allowMath: boolean;
 }
 
 const INLINE_TOKEN =
-  /(\\[\\`*_[\]$~])|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(\[[^\]\n]+\]\([^)\n]+\))|(\\\([^\n]*?\\\))|(\$[^$\n]+\$)|(\*[^*\n]+\*)|(_[^_\n]+_)/g;
+  /(\\[\\`*_[\]$~|])|(`[^`\n]+`)|(\*\*[^*\n]+\*\*)|(__[^_\n]+__)|(~~[^~\n]+~~)|(\[[^\]\n]+\]\([^)\n]+\))|(\\\([^\n]*?\\\))|(\$[^$\n]+\$)|(\*[^*\n]+\*)|(_[^_\n]+_)/g;
 
 function parseInline(source: string, options: ParseOptions, keyPrefix = 'i'): ReactNode[] {
   const out: ReactNode[] = [];
@@ -210,27 +218,30 @@ function parseBlocks(source: string, options: ParseOptions): ReactNode[] {
       continue;
     }
 
-    if (options.allowMath && /^\s*\$\$\s*$/.test(line)) {
+    const trimmed = line.trim();
+    const mathOpen = trimmed.startsWith('$$') ? '$$' : trimmed.startsWith('\\[') ? '\\[' : null;
+    if (options.allowMath && mathOpen) {
+      const close = mathOpen === '$$' ? '$$' : '\\]';
+      const tail = trimmed.slice(2);
       const body: string[] = [];
-      i++;
-      while (i < lines.length && !/^\s*\$\$\s*$/.test(lines[i])) {
-        body.push(lines[i]);
-        i++;
+      let end = i;
+      if (tail.endsWith(close)) {
+        body.push(tail.slice(0, -2));
+      } else {
+        body.push(tail);
+        end = i + 1;
+        while (end < lines.length && lines[end].trim() !== close) {
+          body.push(lines[end++]);
+        }
       }
-      if (i < lines.length) i++;
-      out.push(<div key={key('math')} className="md-math-block"><Tex tex={body.join('\n')} display /></div>);
-      continue;
-    }
-
-    if (options.allowMath && /^\s*\\\[\s*$/.test(line)) {
-      const body: string[] = [];
-      i++;
-      while (i < lines.length && !/^\s*\\\]\s*$/.test(lines[i])) {
-        body.push(lines[i]);
-        i++;
+      if (end < lines.length) {
+        out.push(<div key={key('math')} className="md-math-block"><Tex tex={body.join('\n')} display /></div>);
+        i = end + 1;
+        continue;
       }
-      if (i < lines.length) i++;
-      out.push(<div key={key('math')} className="md-math-block"><Tex tex={body.join('\n')} display /></div>);
+      // Preserve incomplete input as text; never consume the remaining document.
+      out.push(<p key={key('incomplete-math')}>{line}</p>);
+      i++;
       continue;
     }
 
@@ -383,7 +394,7 @@ function isSpecialBlockStart(lines: string[], index: number, allowMath: boolean)
     /^\s*\d+[.)]\s+/.test(line) ||
     /^\s*>\s?/.test(line) ||
     isTableStart(lines, index) ||
-    (allowMath && (/^\s*\$\$\s*$/.test(line) || /^\s*\\\[\s*$/.test(line)))
+    (allowMath && (/^\s*\$\$/.test(line) || /^\s*\\\[/.test(line)))
   );
 }
 
@@ -422,7 +433,14 @@ function splitTableRow(line: string): string[] {
   let text = line.trim();
   if (text.startsWith('|')) text = text.slice(1);
   if (text.endsWith('|')) text = text.slice(0, -1);
-  return text.split('|').map((cell) => cell.trim());
+  const cells: string[] = [''];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\\' && i + 1 < text.length) {
+      cells[cells.length - 1] += text[i] + text[++i];
+    } else if (text[i] === '|') cells.push('');
+    else cells[cells.length - 1] += text[i];
+  }
+  return cells.map(cell => cell.trim());
 }
 
 function parseAlignment(cell: string): 'left' | 'center' | 'right' | undefined {

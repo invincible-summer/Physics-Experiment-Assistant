@@ -212,9 +212,9 @@ export function UncertaintyPage() {
     <>
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>不确定度与传播</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{`输入 $Y = f(X_1, X_2, \\ldots)$ 表达式，自动符号偏导 → 灵敏度系数 → 各分量贡献 → 合成。当前标准：**${profile.shortName}**。`}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{`输入 $Y = f(X_1, X_2, \\ldots)$ 表达式，自动符号偏导 → 灵敏度系数 → 各分量贡献 → 合成。当前标准：**${profile.shortName}**。`}</MarkdownBlock>
+        </div>
       </header>
 
       <div className="stack">
@@ -228,7 +228,7 @@ export function UncertaintyPage() {
 
         {switchNotice && (
           <Notice variant="warning" title="标准模式已切换">
-            <MarkdownInline>{switchNotice}</MarkdownInline>
+            <MarkdownBlock>{switchNotice}</MarkdownBlock>
           </Notice>
         )}
 
@@ -257,10 +257,10 @@ export function UncertaintyPage() {
 
         <div className="tool-layout">
           <div className="stack">
-            <Panel title="表达式" sub="安全 AST 解析（mathjs），变量名自动识别">
+            <Panel title="表达式" sub="输入计算关系后，自动列出需要填写的变量">
               <Field
                 error={expression.trim() !== '' ? exprError : undefined}
-                hint={'支持 `+ - * / ^`、`sqrt/exp/ln/log`、`sin/cos/tan`（弧度）、常量 `pi`、`e`；**禁止任意 JS 执行**。'}
+                hint={'支持 `+ - * / ^`、`sqrt/exp/ln/log`、`sin/cos/tan`（弧度）、常量 `pi`、`e`。例如 `x*y` 表示两变量相乘。'}
               >
                 <input
                   className="input mono"
@@ -319,7 +319,7 @@ export function UncertaintyPage() {
                     />
                   </Field>
                   <Notice variant="info" title="相关输入（仅 GB/T 模式）">
-                    <MarkdownInline>{'协方差由相关系数给出：$u(x_i,x_j) = r\\,u(x_i)\\,u(x_j)$，合成时加入 $2\\sum c_i c_j\\,u(x_i,x_j)$。课程模式默认输入相互独立，不显示此栏。'}</MarkdownInline>
+                    <MarkdownBlock>{'协方差由相关系数给出：$u(x_i,x_j) = r\\,u(x_i)\\,u(x_j)$，合成时加入 $2\\sum c_i c_j\\,u(x_i,x_j)$。课程模式默认输入相互独立，不显示此栏。'}</MarkdownBlock>
                   </Notice>
                 </div>
               )}
@@ -327,7 +327,7 @@ export function UncertaintyPage() {
           </div>
 
           <div className="stack">
-            <Panel title="公式预览" sub="mathjs AST → LaTeX">
+            <Panel title="公式预览" sub="检查公式是否与预期的计算关系一致">
               {previewLatex ? (
                 <FormulaBlock latex={previewLatex} display />
               ) : (
@@ -344,7 +344,7 @@ export function UncertaintyPage() {
             </Button>
             {outcome?.kind === 'error' && (
               <Notice variant="danger" title="计算失败">
-                <MarkdownInline>{outcome.error}</MarkdownInline>
+                <MarkdownBlock>{outcome.error}</MarkdownBlock>
               </Notice>
             )}
             {outcome?.kind === 'ok' && <ResultCard item={outcome.item} profileName={profile.shortName} />}

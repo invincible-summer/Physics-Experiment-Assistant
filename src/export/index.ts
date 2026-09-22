@@ -60,7 +60,7 @@ export function tableToMarkdown(dataset: DatasetDefinition, project: StoredProje
   raw.forEach((row, i) => {
     if (row.every((cell) => (cell ?? '').trim() === '')) return;
     const values = inputCols.map((col) => (row[dataset.columns.indexOf(col)] ?? '').trim() || '—');
-    lines.push(`| ${i + 1} | ${values.join(' | ')} |`);
+    lines.push(`| ${i + 1} | ${values.map(markdownCell).join(' | ')} |`);
   });
   if (derivedCols.length > 0 && parsed.n > 0) {
     lines.push('', `派生列（${derivedCols.map((c) => c.header).join('、')}）：`);
@@ -69,7 +69,7 @@ export function tableToMarkdown(dataset: DatasetDefinition, project: StoredProje
     parsed.rows.forEach((row, i) => {
       const ins = inputCols.map((x) => (parsed.rawRows[i]?.[x.id] ?? '').trim() || '—');
       const dvs = derivedCols.map((c) => (Number.isFinite(row[c.id]) ? Number(row[c.id].toPrecision(6)).toString() : '—'));
-      lines.push(`| ${i + 1} | ${ins.join(' | ')} | ${dvs.join(' | ')} |`);
+      lines.push(`| ${i + 1} | ${ins.map(markdownCell).join(' | ')} | ${dvs.join(' | ')} |`);
     });
   }
   return lines.join('\n');
@@ -80,7 +80,8 @@ export function resultToMarkdown(item: ResultItem, mathStyle: 'dollar' | 'parens
   const lines: string[] = [`**${item.title}**`];
   if (item.finalText) {
     const uTex = item.unit ? unitTex(item.unit, resolveLatexUnitStyle(latexUnitStyle)) : '';
-    lines.push('', `最终结果：${block(`${item.symbol ?? ''}${item.symbol ? ' = ' : ''}${texSafe(item.finalText)}${uTex}`)}${item.relativeText ? `（相对不确定度 ${item.relativeText}）` : ''}`);
+    lines.push('', '最终结果：', '', block(`${item.symbol ?? ''}${item.symbol ? ' = ' : ''}${texSafe(item.finalText)}${uTex}`));
+    if (item.relativeText) lines.push('', `相对不确定度：${item.relativeText}`);
   }
   for (const s of item.steps) {
     if (s.formulaLatex) lines.push('', block(s.formulaLatex));
@@ -134,7 +135,7 @@ export function buildDataProcessingMarkdown(
   if (filledParams.length > 0) {
     lines.push('', '#### 参数', '', '| 参数 | 数值 | 单位 |', '|---|---|---|');
     for (const p of filledParams) {
-      lines.push(`| ${p.label} | ${project.params[p.id]} | ${p.unit ?? ''} |`);
+      lines.push(`| ${markdownCell(p.label)} | ${markdownCell(project.params[p.id])} | ${markdownCell(p.unit ?? '')} |`);
     }
   }
 
@@ -155,7 +156,7 @@ export function buildDataProcessingMarkdown(
   if (fitEntries.length > 0) {
     lines.push('', '#### 拟合结果');
     for (const f of fitEntries) {
-      lines.push('', `**${f.spec.title}**：${m(f.spec.modelLatex)}`);
+      lines.push('', `**${f.spec.title}**`, '', m(f.spec.modelLatex));
       if (f.ols) {
         lines.push('', `a = \`${f.ols.a.toPrecision(8)}\`，b = \`${f.ols.b.toPrecision(8)}\`，r = \`${f.ols.r.toPrecision(6)}\`（n=${f.ols.n}，ν=${f.ols.dof}，t=${f.ols.t.toPrecision(6)}）`);
         lines.push('', `Sa = \`${f.ols.sa.toPrecision(8)}\`，Sb = \`${f.ols.sb.toPrecision(8)}\`，Δa = \`${f.ols.deltaA.toPrecision(8)}\`，Δb = \`${f.ols.deltaB.toPrecision(8)}\``);
@@ -204,7 +205,8 @@ export { serializeProject };
 export function buildFormulaProcessMarkdown(
   formula: { title: string; latex: string; conditions?: string; variables: { name: string; label: string; unit: string }[]; provenance?: { status: string; document?: string; section?: string } },
   item: ResultItem,
-  opts: { profileName: string; mathStyle: 'dollar' | 'parens'; latexUnitStyle?: boolean },
+  opts: { profileName: string; mathStyle: 'dollar' | 'parens'; latexUnitStyle?: boolean;
+    inputs?: { name: string; rawText: string; unit: string; uncertaintyRaw: string; convertedValue?: number; convertedUnit: string }[] },
 ): string {
   const block = (tex: string) => (opts.mathStyle === 'dollar' ? `$$${tex}$$` : `\\[${tex}\\]`);
   const lines: string[] = [];
@@ -213,6 +215,12 @@ export function buildFormulaProcessMarkdown(
   lines.push('| 变量 | 含义 | 单位 |', '|---|---|---|');
   for (const v of formula.variables) {
     lines.push(`| \`${v.name}\` | ${v.label} | ${v.unit || '—'} |`);
+  }
+  if (opts.inputs?.length) {
+    lines.push('', '### 本次输入', '', '| 变量 | 原始输入 | 输入单位 | 输入不确定度 | 换算值 | 计算单位 |', '|---|---|---|---|---|---|');
+    for (const input of opts.inputs) {
+      lines.push(`| ${[input.name, input.rawText, input.unit || '—', input.uncertaintyRaw || '未提供', input.convertedValue === undefined ? '—' : String(input.convertedValue), input.convertedUnit || '—'].map(markdownCell).join(' | ')} |`);
+    }
   }
   if (formula.conditions) lines.push('', `适用条件：${formula.conditions}`);
   lines.push('', '### 计算过程', '', resultToMarkdown(item, opts.mathStyle, opts.latexUnitStyle));
@@ -229,4 +237,9 @@ export function downloadTextFile(filename: string, text: string, mime = 'text/ma
   a.download = filename.replace(/[\\/:*?"<>|]/g, '_');
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Escape report table text without changing stored raw inputs. */
+export function markdownCell(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
 }

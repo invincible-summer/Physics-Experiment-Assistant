@@ -7,7 +7,7 @@ import { ResultItem } from '../core/results';
 import { Tex } from './katex';
 import { SourceBadge } from './ui';
 import { useSettings } from '../stores/settings';
-import { MarkdownInline, MarkdownList } from './Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from './Markdown';
 
 export function ResultInspector({ results, profileName }: { results: ResultItem[]; profileName?: string }) {
   const showProvenance = useSettings((s) => s.showProvenance);
@@ -15,7 +15,7 @@ export function ResultInspector({ results, profileName }: { results: ResultItem[
   if (results.length === 0) {
     return (
       <div className="empty-state">
-        <div className="small muted"><MarkdownInline>等待输入数据后显示计算结果</MarkdownInline></div>
+        <div className="small muted"><MarkdownBlock>等待输入数据后显示计算结果</MarkdownBlock></div>
       </div>
     );
   }
@@ -74,7 +74,7 @@ export function ResultCard({ item, profileName, showProvenance = true, expert = 
                 {s.unrounded && (
                   <div className="subst unrounded"><MarkdownInline>{`**未修约：**${s.unrounded}`}</MarkdownInline></div>
                 )}
-                {s.note && <div className="small muted"><MarkdownInline>{s.note}</MarkdownInline></div>}
+                {s.note && <div className="small muted"><MarkdownBlock>{s.note}</MarkdownBlock></div>}
               </div>
             ))}
           </Section>
@@ -86,7 +86,7 @@ export function ResultCard({ item, profileName, showProvenance = true, expert = 
         )}
         {item.roundingNote && (
           <Section label="修约依据" defaultOpen={expert}>
-            <div className="small"><MarkdownInline>{item.roundingNote}</MarkdownInline></div>
+            <div className="small"><MarkdownBlock>{item.roundingNote}</MarkdownBlock></div>
           </Section>
         )}
         {showProvenance && item.provenance && (

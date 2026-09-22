@@ -3,7 +3,7 @@
  * 在页面顶部提示来源与规模，用户选择「填入」或「忽略」（绝不静默覆盖输入）。
  */
 import { Notice, Button } from '../../components/ui';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { ToolPayload, useToolBus } from './tool-bus';
 
 export function PayloadBanner({ accept, onAccept }: {
@@ -21,9 +21,7 @@ export function PayloadBanner({ accept, onAccept }: {
     : `**${payload.name}** = ${payload.valueText}${payload.uncText ? ` ± ${payload.uncText}` : ''}`;
 
   return (
-    <Notice variant="info" title={`收到来自「${payload.source}」的数据`}>
-      <div className="row-between" style={{ flexWrap: 'wrap', gap: 8 }}>
-        <MarkdownInline>{desc}</MarkdownInline>
+    <Notice variant="info" title={`收到来自「${payload.source}」的数据`} actions={
         <span className="row" style={{ gap: 6 }}>
           <Button size="sm" variant="ghost" onClick={dismiss}>忽略</Button>
           <Button
@@ -38,7 +36,8 @@ export function PayloadBanner({ accept, onAccept }: {
             填入本页
           </Button>
         </span>
-      </div>
+      }>
+      <MarkdownBlock>{desc}</MarkdownBlock>
     </Notice>
   );
 }

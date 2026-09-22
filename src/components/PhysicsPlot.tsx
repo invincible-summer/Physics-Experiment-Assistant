@@ -8,11 +8,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import * as echarts from 'echarts';
 import { Button, Notice, toast } from './ui';
 import { useSettings } from '../stores/settings';
-import { MarkdownInline, MarkdownList } from './Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from './Markdown';
 
 export interface PlotSeries {
   name: string;
   points: { x: number; y: number }[];
+  /** 在对应有效点之前插入断线，不影响 CSV 和误差索引。 */
+  breakBefore?: number[];
   /** 数据点误差棒 */
   xError?: number[];
   yError?: number[];
@@ -31,7 +33,9 @@ export interface PhysicsPlotProps {
   yLabel: string;
   series: PlotSeries[];
   height?: number;
-  /** 拟合注释（如 y = a + bx, r = 0.998）；右上角等宽小字，多行，LaTeX 原样显示 */
+  interactive?: boolean;
+  showGrid?: boolean;
+  /** 拟合注释：屏幕图下方显示，导出图中保留，避免遮挡图例。 */
   annotations?: { text: string }[];
   xLog?: boolean;
   yLog?: boolean;
@@ -67,7 +71,7 @@ function seriesPalette(): string[] {
 export function PhysicsPlot(props: PhysicsPlotProps) {
   const elRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<echarts.ECharts | null>(null);
-  const { title, xLabel, yLabel, series, height = 340, annotations = [], xLog, yLog, hideLegend, xMin, xMax, yMin, yMax } = props;
+  const { title, xLabel, yLabel, series, height = 340, interactive = false, showGrid = true, annotations = [], xLog, yLog, hideLegend, xMin, xMax, yMin, yMax } = props;
   const theme = useSettings((s) => s.theme);
   const defaultPlotFormat = useSettings((s) => s.defaultPlotFormat);
   const plotWhiteBackground = useSettings((s) => s.plotWhiteBackground);
@@ -86,10 +90,20 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
       const symbol = s.symbol ?? SERIES_SYMBOLS[idx % SERIES_SYMBOLS.length];
       const xData = s.points.map((p) => p.x);
       const yData = s.points.map((p) => p.y);
+      const breaks = new Set(s.breakBefore ?? []);
+      const chartData: Array<{ value: [number, number | null]; sourceIndex: number }> = [];
+      let gap = false;
+      s.points.forEach((p, i) => {
+        if ((xLog && p.x <= 0) || (yLog && p.y <= 0)) { gap = true; return; }
+        if ((gap || breaks.has(i)) && chartData.length) chartData.push({ value: [p.x, null], sourceIndex: i });
+        chartData.push({ value: [p.x, p.y], sourceIndex: i });
+        gap = false;
+      });
       realSeries.push({
         name: s.name,
         type: s.type === 'scatter' ? 'scatter' : 'line',
-        data: s.points.map((p) => [p.x, p.y]),
+        data: chartData,
+        connectNulls: false,
         symbol: s.type === 'line' ? (s.showSymbol ? symbol : 'none') : symbol,
         symbolSize: 8,
         itemStyle: { color },
@@ -163,42 +177,25 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         textStyle: { color: ink2 },
         data: series.map((s) => s.name),
       },
-      grid: { left: 62, right: 22, top: annotations.length > 0 ? 74 : 54, bottom: 44 },
+      grid: { left: 62, right: 28, top: 66, bottom: interactive ? 86 : 44, containLabel: true },
+      dataZoom: interactive ? [{ type: 'slider', xAxisIndex: 0, bottom: 10, height: 20, filterMode: 'none' }] : [],
       tooltip: {
         trigger: 'item',
+        renderMode: 'richText',
         formatter: (params: unknown) => {
-          const p = params as { seriesIndex?: number; seriesName?: string; dataIndex?: number; value?: unknown };
+          const p = params as { seriesIndex?: number; seriesName?: string; dataIndex?: number; data?: { sourceIndex?: number }; value?: unknown };
           const owner = p.seriesIndex !== undefined ? seriesOwners[p.seriesIndex] : undefined;
           if (!owner || !Array.isArray(p.value)) return String(p.seriesName ?? '');
-          const i = p.dataIndex ?? 0;
+          const i = p.data?.sourceIndex ?? p.dataIndex ?? 0;
           const x = Number(p.value[0]);
           const y = Number(p.value[1]);
           const xe = owner.xError?.[i];
           const ye = owner.yError?.[i];
           const withErr = (v: number, e?: number) =>
             typeof e === 'number' && e > 0 ? `${fmtPlotNum(v)} ± ${fmtPlotNum(e)}` : fmtPlotNum(v);
-          return `${owner.name}<br/>${xLabel}: ${withErr(x, xe)}<br/>${yLabel}: ${withErr(y, ye)}`;
+          return `${owner.name}\n${xLabel}: ${withErr(x, xe)}\n${yLabel}: ${withErr(y, ye)}`;
         },
       },
-      // 拟合注释：右上角等宽小字，多行；LaTeX 内容仅原样文本，不渲染 KaTeX
-      graphic: annotations.length > 0
-        ? [
-          {
-            type: 'text',
-            right: 16,
-            top: 30,
-            silent: true,
-            style: {
-              text: annotations.map((a) => a.text).join('\n'),
-              fontSize: 11.5,
-              lineHeight: 16,
-              fontFamily: mono,
-              fill: ink3,
-              align: 'right',
-            },
-          },
-        ]
-        : [],
       xAxis: {
         name: xLabel,
         nameLocation: 'middle',
@@ -210,7 +207,7 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         max: xMax,
         axisLine: { show: true, lineStyle: { color: ink3 } },
         axisLabel: { color: ink2 },
-        splitLine: { show: false },
+        splitLine: { show: showGrid, lineStyle: { color: line, opacity: 0.6 } },
       },
       yAxis: {
         name: yLabel,
@@ -223,13 +220,13 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
         max: yMax,
         axisLine: { show: true, lineStyle: { color: ink3 } },
         axisLabel: { color: ink2 },
-        splitLine: { show: true, lineStyle: { color: line, opacity: 0.6 } },
+        splitLine: { show: showGrid, lineStyle: { color: line, opacity: 0.6 } },
       },
       toolbox: { show: false },
       series: realSeries,
     };
     // theme 作为依赖：主题切换后重建配色
-  }, [title, xLabel, yLabel, series, annotations, xLog, yLog, hideLegend, xMin, xMax, yMin, yMax, theme]);
+  }, [title, xLabel, yLabel, series, annotations, xLog, yLog, hideLegend, xMin, xMax, yMin, yMax, theme, interactive, showGrid]);
 
   useEffect(() => {
     if (!elRef.current) return;
@@ -255,39 +252,43 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
     };
   }, []);
 
-  const exportSVG = () => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const svgEl = chart.getDom().querySelector('svg');
-    if (!svgEl) return;
-    const clone = svgEl.cloneNode(true) as SVGSVGElement;
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    clone.querySelectorAll('[filter]').forEach((n) => n.remove());
-    if (plotWhiteBackground) {
-      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      bg.setAttribute('width', '100%');
-      bg.setAttribute('height', '100%');
-      bg.setAttribute('fill', '#ffffff');
-      clone.insertBefore(bg, clone.firstChild);
-    }
-    const blob = new Blob([clone.outerHTML], { type: 'image/svg+xml' });
-    downloadBlob(blob, `${sanitize(title)}.svg`);
-    toast('已导出 SVG 图');
-  };
-
-  const exportPNG = () => {
-    const chart = chartRef.current;
-    if (!chart) return;
-    const url = chart.getDataURL({
-      type: 'png',
-      backgroundColor: plotWhiteBackground ? '#ffffff' : 'transparent',
-      pixelRatio: 2,
-    });
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${sanitize(title)}.png`;
-    a.click();
-    toast('已导出 PNG 图');
+  // Separate renderer guarantees real PNG bytes and print contrast in dark mode.
+  const exportImage = (format: 'svg' | 'png') => {
+    const live = chartRef.current;
+    if (!live) return;
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-10000px;top:0;pointer-events:none';
+    document.body.appendChild(container);
+    let output: echarts.ECharts | undefined;
+    try {
+      output = echarts.init(container, undefined, { renderer: format === 'png' ? 'canvas' : 'svg', width: Math.max(720, live.getWidth()), height: Math.max(480, live.getHeight()) });
+      const current = live.getOption();
+      const ink = plotWhiteBackground ? '#25313d' : cssVar('--ink-2', '#25313d');
+      const axisStyle = { nameTextStyle: { fontSize: 12.5, color: ink }, axisLabel: { color: ink }, axisLine: { show: true, lineStyle: { color: ink } }, splitLine: { show: showGrid, lineStyle: { color: plotWhiteBackground ? '#dce1e6' : cssVar('--line', '#dce1e6') } } };
+      output.setOption({ ...option,
+        backgroundColor: plotWhiteBackground ? '#ffffff' : cssVar('--paper-raised', '#ffffff'),
+        title: { ...option.title, textStyle: { ...option.title.textStyle, color: ink } },
+        legend: option.legend ? { ...option.legend, textStyle: { color: ink }, selected: (current.legend as Array<{ selected?: object }>)?.[0]?.selected } : undefined,
+        xAxis: { ...option.xAxis, ...axisStyle }, yAxis: { ...option.yAxis, ...axisStyle },
+        dataZoom: ((current.dataZoom ?? []) as object[]).map(z => ({ ...z, show: false })),
+        grid: { ...option.grid, top: 66 + annotations.length * 18, bottom: 50 },
+        graphic: annotations.length ? [{ type: 'text', left: 68, top: 52, style: { text: annotations.map(a => a.text).join('\n'), fill: ink, fontSize: 11, lineHeight: 18 } }] : [],
+      });
+      if (format === 'svg') {
+        const svg = output.getDom().querySelector('svg');
+        if (!svg) throw new Error('SVG 未就绪');
+        svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        downloadBlob(new Blob([svg.outerHTML], { type: 'image/svg+xml' }), `${sanitize(title)}.svg`);
+      } else {
+        const url = output.getDataURL({ type: 'png', pixelRatio: 2 });
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${sanitize(title)}.png`;
+        a.click();
+      }
+      toast(`已导出 ${format.toUpperCase()} 图`);
+    } catch { toast('图片导出失败，请重试'); }
+    finally { output?.dispose(); container.remove(); }
   };
 
   const exportCSV = () => {
@@ -311,14 +312,16 @@ export function PhysicsPlot(props: PhysicsPlotProps) {
 
   const [first, second] = defaultPlotFormat === 'png' ? ['png', 'svg'] as const : ['svg', 'png'] as const;
   const exporters = {
-    svg: <Button key="svg" size="sm" variant={first === 'svg' ? 'default' : 'ghost'} icon="download" onClick={exportSVG}>导出 SVG</Button>,
-    png: <Button key="png" size="sm" variant={first === 'png' ? 'default' : 'ghost'} icon="download" onClick={exportPNG}>导出 PNG</Button>,
+    svg: <Button key="svg" size="sm" variant={first === 'svg' ? 'default' : 'ghost'} icon="download" onClick={() => exportImage('svg')}>导出 SVG</Button>,
+    png: <Button key="png" size="sm" variant={first === 'png' ? 'default' : 'ghost'} icon="download" onClick={() => exportImage('png')}>导出 PNG</Button>,
   };
 
   return (
     <div>
       <div ref={elRef} style={{ width: '100%', height }} role="img" aria-label={`${title}：${xLabel} 对 ${yLabel} 图`} />
-      <div className="row-right" style={{ marginTop: 4 }}>
+      {annotations.length > 0 && <div className="plot-annotations"><MarkdownList items={annotations.map(a => a.text)} /></div>}
+      <div className="row-right plot-toolbar" style={{ marginTop: 4 }}>
+        {interactive && <Button size="sm" onClick={() => chartRef.current?.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })}>恢复视图</Button>}
         {exporters[first]}
         {exporters[second]}
         <Button size="sm" variant="ghost" icon="download" onClick={exportCSV}>导出 CSV</Button>
@@ -342,7 +345,7 @@ export function PlotChecklist({ title, xLabel, yLabel, series }: {
   if (issues.length === 0) {
     return (
       <Notice variant="success">
-        <MarkdownInline>图表符合课程规范检查（轴名 / 单位 / 图名 / 数据点）</MarkdownInline>
+        <MarkdownBlock>图表符合课程规范检查（轴名 / 单位 / 图名 / 数据点）</MarkdownBlock>
       </Notice>
     );
   }

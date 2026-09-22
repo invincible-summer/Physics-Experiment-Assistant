@@ -7,11 +7,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parseNumericText } from '../../core/numeric';
-import { compileExpression, evaluateExpression } from '../../core/expression';
+import { axisRange, sampleFunction } from '../../core/graph';
 import { PhysicsPlot, PlotSeries, PlotChecklist } from '../../components/PhysicsPlot';
 import { DataGrid, GridColumn } from '../../components/DataGrid';
 import { Button, ConfirmButton, EmptyState, Menu, Notice, Panel, toast } from '../../components/ui';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { useToolDraft, clearToolDraft } from './use-tool-draft';
 import { PayloadBanner } from './PayloadBanner';
 import { tablePayload, useToolBus } from './tool-bus';
@@ -66,21 +66,15 @@ const INITIAL: PlotterDraft = {
 
 const MAX_SERIES = 6;
 
-function parseAxisBound(raw: string, log: boolean): number | undefined {
-  const t = raw.trim();
-  if (t === '') return undefined;
-  const p = parseNumericText(t);
-  if (!p.ok) return undefined;
-  if (log && p.value <= 0) return undefined;
-  return p.value;
-}
-
 export function PlotterPage() {
   const navigate = useNavigate();
   const send = useToolBus((s) => s.send);
   const [draft, setDraft] = useToolDraft<PlotterDraft>('plotter', INITIAL);
   const patch = (p: Partial<PlotterDraft>) => setDraft((d) => ({ ...d, ...p }));
   const [exprSeq, setExprSeq] = useState(1);
+  const [showGrid, setShowGrid] = useState(true);
+  const [editorTab, setEditorTab] = useState<'data' | 'function' | 'axes'>('data');
+  const [focusPlot, setFocusPlot] = useState(false);
 
   const columns: GridColumn[] = useMemo(() => {
     const cols: GridColumn[] = [{ id: 'x', header: draft.xName || 'x', unit: draft.xUnit || undefined }];
@@ -95,19 +89,24 @@ export function PlotterPage() {
     const out: PlotSeries[] = [];
     for (let i = 0; i < draft.yCount; i++) {
       const points: { x: number; y: number }[] = [];
+      const breakBefore: number[] = [];
+      let gap = false;
       for (const row of draft.rows) {
         const xr = (row[0] ?? '').trim();
         const yr = (row[i + 1] ?? '').trim();
-        if (xr === '' || yr === '') continue;
+        if (xr === '' || yr === '') { gap = true; continue; }
         const xp = parseNumericText(xr);
         const yp = parseNumericText(yr);
-        if (!xp.ok || !yp.ok) continue;
+        if (!xp.ok || !yp.ok) { gap = true; continue; }
+        if (gap && points.length) breakBefore.push(points.length);
+        gap = false;
         points.push({ x: xp.value, y: yp.value });
       }
       if (points.length === 0) continue;
       out.push({
         name: draft.seriesNames[i] || `y${i + 1}`,
         points,
+        breakBefore,
         type: draft.connectPoints ? 'line' : 'scatter',
         showSymbol: true,
       });
@@ -123,59 +122,21 @@ export function PlotterPage() {
     for (const e of draft.exprs) {
       const expr = e.expr.trim();
       if (expr === '') continue;
-      let compiled;
+      let sampled;
       try {
-        compiled = compileExpression(expr);
+        sampled = sampleFunction(expr, e.xmin, e.xmax, e.samples, draft.xLog, draft.yLog);
       } catch (err) {
-        errors.push({ id: e.id, message: `表达式无法解析：${(err as Error).message}` });
+        errors.push({ id: e.id, message: (err as Error).message });
         continue;
       }
-      const unknown = compiled.variables.filter((v) => v !== 'x');
-      if (unknown.length > 0) {
-        errors.push({ id: e.id, message: `表达式含未知变量 ${unknown.join('、')}（只允许 x）` });
-        continue;
-      }
-      const xmin = parseNumericText(e.xmin);
-      const xmax = parseNumericText(e.xmax);
-      if (!xmin.ok || !xmax.ok) {
-        errors.push({ id: e.id, message: '请填写合法的取样起点与终点' });
-        continue;
-      }
-      if (!(xmin.value < xmax.value)) {
-        errors.push({ id: e.id, message: '取样起点必须小于终点' });
-        continue;
-      }
-      if (draft.xLog && xmin.value <= 0) {
-        errors.push({ id: e.id, message: '对数横轴要求取样起点大于 0' });
-        continue;
-      }
-      const nParsed = parseNumericText(e.samples || '200');
-      const n = nParsed.ok ? Math.min(1000, Math.max(2, Math.round(nParsed.value))) : 200;
-      const points: { x: number; y: number }[] = [];
-      let bad = 0;
-      for (let i = 0; i < n; i++) {
-        const t = n === 1 ? 0 : i / (n - 1);
-        const x = draft.xLog
-          ? xmin.value * Math.pow(xmax.value / xmin.value, t)
-          : xmin.value + (xmax.value - xmin.value) * t;
-        let y: number;
-        try {
-          y = evaluateExpression(compiled, { x });
-        } catch {
-          bad += 1;
-          continue;
-        }
-        if (!Number.isFinite(y)) { bad += 1; continue; }
-        if (draft.yLog && y <= 0) continue;
-        points.push({ x, y });
-      }
+      const { points, breakBefore, skipped } = sampled;
       if (points.length < 2) {
-        errors.push({ id: e.id, message: '取样区间内有效点不足（检查定义域与对数轴约束）' });
+        errors.push({ id: e.id, message: '取样区间内有效点不足，请检查定义域与对数轴约束' });
         continue;
       }
       const name = e.name.trim() || `y = ${expr}`;
-      series.push({ name, points, type: 'line' });
-      annotations.push({ text: `${name}，x ∈ [${xmin.value}, ${xmax.value}]，${n} 点${bad > 0 ? `，${bad} 点域外跳过` : ''}` });
+      series.push({ name, points, breakBefore, type: 'line', dashed: series.length % 2 === 1 });
+      annotations.push({ text: `${name}，${points.length} 个有效点${skipped ? `，${skipped} 点域外或不满足对数轴约束` : ''}` });
     }
     return { series, errors, annotations };
   }, [draft.exprs, draft.xLog, draft.yLog]);
@@ -206,11 +167,11 @@ export function PlotterPage() {
     });
   };
 
-  const addExpr = () => {
+  const addExpr = (expr = '', xmin = '0', xmax = '10') => {
     const id = `e${Date.now().toString(36)}${exprSeq}`;
     setExprSeq((v) => v + 1);
     patch({
-      exprs: [...draft.exprs, { id, name: '', expr: '', xmin: '0', xmax: '10', samples: '200' }],
+      exprs: [...draft.exprs, { id, name: '', expr, xmin, xmax, samples: '201' }],
     });
   };
   const patchExpr = (id: string, p: Partial<ExprDraft>) =>
@@ -223,15 +184,26 @@ export function PlotterPage() {
     navigate('/tools/regression');
   };
 
+  const bounds = useMemo(() => {
+    try {
+      const x = axisRange(draft.xMin, draft.xMax, draft.xLog);
+      const y = axisRange(draft.yMin, draft.yMax, draft.yLog);
+      return { x, y, error: '' };
+    } catch (error) { return { x: { min: undefined, max: undefined }, y: { min: undefined, max: undefined }, error: (error as Error).message }; }
+  }, [draft.xMin, draft.xMax, draft.yMin, draft.yMax, draft.xLog, draft.yLog]);
+  const hiddenPoints = dataSeries.reduce((n, s) => n + s.points.filter(p => (draft.xLog && p.x <= 0) || (draft.yLog && p.y <= 0)).length, 0);
+  const invalidRows = draft.rows.filter(row => row.some(v => v.trim()) && (
+    !parseNumericText(row[0] ?? '').ok || Array.from({ length: draft.yCount }, (_, i) => row[i + 1] ?? '').some(v => !parseNumericText(v).ok)
+  )).length;
   const hasData = dataSeries.length > 0;
 
   return (
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>绘图工作台</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>表格数据与 $y=f(x)$ 表达式混合成图；轴名、单位、坐标起点与对数轴可配；导出 SVG / PNG / CSV，或把数据发送给线性拟合。</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>表格数据与 $y=f(x)$ 表达式混合成图；轴名、单位、坐标起点与对数轴可配；导出 SVG / PNG / CSV，或把数据发送给线性拟合。</MarkdownBlock>
+        </div>
       </header>
 
       <PayloadBanner
@@ -259,9 +231,22 @@ export function PlotterPage() {
         }}
       />
 
-      <div className="tool-layout">
+      <div className="plot-workflow row">
+        <span><MarkdownInline>**01** 录入数据或函数</MarkdownInline></span>
+        <span><MarkdownInline>**02** 设置坐标与图名</MarkdownInline></span>
+        <span><MarkdownInline>**03** 检查并导出</MarkdownInline></span>
+        <Button size="sm" onClick={() => setFocusPlot(!focusPlot)} aria-pressed={focusPlot}>{focusPlot ? '返回编辑' : '专注看图'}</Button>
+      </div>
+      <div className={`plot-workspace${focusPlot ? ' plot-focus' : ''}`}>
+
         <div className="stack">
+          <div className="plot-editor-nav row" role="group" aria-label="绘图编辑步骤">
+            <Button size="sm" variant={editorTab === 'data' ? 'primary' : 'ghost'} aria-pressed={editorTab === 'data'} onClick={() => setEditorTab('data')}>数据录入</Button>
+            <Button size="sm" variant={editorTab === 'function' ? 'primary' : 'ghost'} aria-pressed={editorTab === 'function'} onClick={() => setEditorTab('function')}>函数曲线</Button>
+            <Button size="sm" variant={editorTab === 'axes' ? 'primary' : 'ghost'} aria-pressed={editorTab === 'axes'} onClick={() => setEditorTab('axes')}>图名与坐标</Button>
+          </div>
           <Panel
+            className={editorTab === 'data' ? '' : 'plot-editor-hidden'}
             title="数据系列"
             sub="第 1 列为 $x$，其后每列一个 $y$ 系列；可从 Excel 粘贴"
             actions={hasData ? (
@@ -305,7 +290,7 @@ export function PlotterPage() {
                       checked={draft.connectPoints}
                       onChange={(e) => patch({ connectPoints: e.target.checked })}
                     />
-                    <MarkdownInline>数据点连线</MarkdownInline>
+                    <MarkdownInline allowLinks={false}>数据点连线</MarkdownInline>
                   </label>
                 </div>
               </div>
@@ -313,12 +298,19 @@ export function PlotterPage() {
           </Panel>
 
           <Panel
+            className={editorTab === 'function' ? '' : 'plot-editor-hidden'}
             title="表达式系列"
-            sub="安全 AST 求值（无 eval）；变量只允许 $x$"
-            actions={<Button size="sm" icon="function" onClick={addExpr}>添加表达式</Button>}
+            sub="输入 $y=f(x)$，三角函数使用弧度；可与测量数据叠加比较"
+            actions={<Button size="sm" icon="function" onClick={() => addExpr()}>添加表达式</Button>}
           >
+            <div className="row plot-presets">
+              <span className="small muted"><MarkdownInline>添加数学函数</MarkdownInline></span>
+              <Button size="sm" onClick={() => addExpr('sin(x)', '0', '6.283185307179586')}>正弦函数</Button>
+              <Button size="sm" onClick={() => addExpr('exp(-x)*cos(2*pi*x)')}>衰减振荡</Button>
+              <Button size="sm" onClick={() => addExpr('x^2')}>二次函数</Button>
+            </div>
             {draft.exprs.length === 0 ? (
-              <div className="small muted"><MarkdownInline>还没有表达式；点击右上「添加表达式」，例如 `sin(x)` 或 `2.5*x^2 + 1`。</MarkdownInline></div>
+              <div className="small muted"><MarkdownBlock>还没有表达式；点击右上「添加表达式」，例如 `sin(x)` 或 `2.5*x^2 + 1`。</MarkdownBlock></div>
             ) : (
               <div className="stack">
                 {draft.exprs.map((e) => {
@@ -347,7 +339,7 @@ export function PlotterPage() {
                       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
                         <span className="small muted"><MarkdownInline>取样区间</MarkdownInline></span>
                         <input className="input" style={{ width: 84 }} value={e.xmin} onChange={(ev) => patchExpr(e.id, { xmin: ev.target.value })} aria-label="取样起点" />
-                        <span className="small muted">—</span>
+                        <span className="small muted"><MarkdownInline>至</MarkdownInline></span>
                         <input className="input" style={{ width: 84 }} value={e.xmax} onChange={(ev) => patchExpr(e.id, { xmax: ev.target.value })} aria-label="取样终点" />
                         <span className="small muted"><MarkdownInline>点数</MarkdownInline></span>
                         <input className="input" style={{ width: 70 }} value={e.samples} onChange={(ev) => patchExpr(e.id, { samples: ev.target.value })} aria-label="取样点数" />
@@ -360,11 +352,11 @@ export function PlotterPage() {
             )}
           </Panel>
 
-          <Panel title="图名与坐标轴" sub="坐标起点/终点留空则自动伸展；对数轴下非正范围被忽略">
+          <Panel className={editorTab === 'axes' ? '' : 'plot-editor-hidden'} title="图名与坐标轴" sub="坐标起点/终点留空则自动伸展；对数轴的起点与终点必须为正值">
             <div className="form-grid">
               <div className="field">
                 <div className="field-label"><MarkdownInline>图名</MarkdownInline></div>
-                <input className="input" value={draft.title} onChange={(e) => patch({ title: e.target.value })} />
+                <input className="input" aria-label="图名" value={draft.title} onChange={(e) => patch({ title: e.target.value })} />
               </div>
               <div className="field">
                 <div className="field-label"><MarkdownInline>横轴名称 / 单位</MarkdownInline></div>
@@ -399,11 +391,11 @@ export function PlotterPage() {
                 <div className="row" style={{ gap: 14 }}>
                   <label className="row" style={{ gap: 6 }}>
                     <input type="checkbox" checked={draft.xLog} onChange={(e) => patch({ xLog: e.target.checked })} />
-                    <MarkdownInline>横轴对数</MarkdownInline>
+                    <MarkdownInline allowLinks={false}>横轴对数</MarkdownInline>
                   </label>
                   <label className="row" style={{ gap: 6 }}>
                     <input type="checkbox" checked={draft.yLog} onChange={(e) => patch({ yLog: e.target.checked })} />
-                    <MarkdownInline>纵轴对数</MarkdownInline>
+                    <MarkdownInline allowLinks={false}>纵轴对数</MarkdownInline>
                   </label>
                 </div>
               </div>
@@ -419,31 +411,37 @@ export function PlotterPage() {
         </div>
 
         <div className="stack">
-          <Panel title="图像预览" sub="导出为白底可打印样式（可在设置中更改）">
-            {allSeries.length === 0 ? (
-              <EmptyState icon="chart" title="等待数据或表达式" hint="在左侧粘贴数据列，或添加一条 y=f(x) 表达式" />
+          <Panel title="图像预览" sub="拖动底部滑块缩放横轴；图例可切换系列显示" actions={<Button size="sm" aria-pressed={showGrid} onClick={() => setShowGrid(!showGrid)}>{showGrid ? '隐藏网格' : '显示网格'}</Button>}>
+            {bounds.error && <Notice variant="danger" title="请修正坐标范围"><MarkdownBlock>{bounds.error}</MarkdownBlock></Notice>}
+            {invalidRows > 0 && <Notice variant="warning"><MarkdownBlock>{`${invalidRows} 行含缺失或非法数值；仅绘制有效配对，连线在缺失处断开。`}</MarkdownBlock></Notice>}
+            {hiddenPoints > 0 && <Notice variant="warning"><MarkdownBlock>{`${hiddenPoints} 个非正数据点无法显示在对数轴上，原始输入仍保留。`}</MarkdownBlock></Notice>}
+
+            {bounds.error ? null : allSeries.length === 0 ? (
+              <EmptyState icon="chart" title="等待数据或表达式" hint="粘贴两列测量数据，或切换到「函数曲线」添加正弦函数" />
             ) : (
               <PhysicsPlot
                 title={draft.title || '未命名图'}
                 xLabel={xLabel}
                 yLabel={yLabel}
                 series={allSeries}
-                height={420}
+                height={480}
+                interactive
+                showGrid={showGrid}
                 annotations={exprSeries.annotations}
                 xLog={draft.xLog}
                 yLog={draft.yLog}
-                xMin={parseAxisBound(draft.xMin, draft.xLog)}
-                xMax={parseAxisBound(draft.xMax, draft.xLog)}
-                yMin={parseAxisBound(draft.yMin, draft.yLog)}
-                yMax={parseAxisBound(draft.yMax, draft.yLog)}
+                xMin={bounds.x.min}
+                xMax={bounds.x.max}
+                yMin={bounds.y.min}
+                yMax={bounds.y.max}
               />
             )}
           </Panel>
-          {allSeries.length > 0 && (
+          {dataSeries.length > 0 && (
             <PlotChecklist title={draft.title} xLabel={xLabel} yLabel={yLabel} series={allSeries} />
           )}
           <Notice variant="info">
-            <MarkdownInline>{'导出的 CSV 同时包含数据点与表达式采样点；需要拟合时用「发送到… → 线性拟合」。'}</MarkdownInline>
+            <MarkdownBlock>{'导出的 CSV 同时包含数据点与表达式采样点；需要拟合时用「发送到… → 线性拟合」。'}</MarkdownBlock>
           </Notice>
         </div>
       </div>

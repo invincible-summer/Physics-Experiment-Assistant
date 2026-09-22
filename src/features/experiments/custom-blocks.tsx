@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { PhysicsPlot, PlotSeries } from '../../components/PhysicsPlot';
 import { EmptyState, Notice, Panel } from '../../components/ui';
 import { MICHELSON_CHECKLIST } from '../../experiments/tsinghua-a1-2026/michelson';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 
 const SERIES_SYMBOLS = ['circle', 'rect', 'triangle', 'diamond'] as const;
 
@@ -38,7 +38,7 @@ export function ForcedPlotsBlock({ series }: { series?: ForcedSeriesEntry[] }) {
     <div className="stack">
       <Panel title={'幅频特性 $\\theta$–$\\omega/\\omega_0$'}>
         <PhysicsPlot title="幅频特性" xLabel="ω/ω0" yLabel="θ" series={ampSeries} />
-        <div className="small muted" style={{ marginTop: 6 }}><MarkdownInline>多系列用不同点符区分；共振点请结合 $\varphi\approx\pi/2$ 与振幅极大共同判断。</MarkdownInline></div>
+        <div className="small muted" style={{ marginTop: 6 }}><MarkdownBlock>多系列用不同点符区分；共振点请结合 $\varphi\approx\pi/2$ 与振幅极大共同判断。</MarkdownBlock></div>
       </Panel>
       <Panel title={'相频特性 $\\varphi$–$\\omega/\\omega_0$'}>
         <PhysicsPlot title="相频特性" xLabel="ω/ω0" yLabel="φ (deg)" series={phiSeries} />
@@ -84,16 +84,16 @@ export function QuasiDiagnosticsBlock({ data }: { data?: QuasiDiagnosticsData })
             <td className="num"><MarkdownInline>{`${data.u1SlopeRel.toPrecision(4)}（应 $\\approx 0$）`}</MarkdownInline></td>
           </tr>
           <tr>
-            <th><MarkdownInline>$U_2$–$\\tau$ 线性拟合 $r$</MarkdownInline></th>
+            <th><MarkdownInline>$U_2$–$\tau$ 线性拟合 $r$</MarkdownInline></th>
             <td className="num"><MarkdownInline>{`${data.u2Fit.r.toPrecision(6)}（应 $\\approx 1$）`}</MarkdownInline></td>
           </tr>
         </tbody>
       </table>
       <div style={{ marginTop: 8 }}>
         <Notice variant={ok ? 'success' : 'warning'} title={ok ? '区间判据满足' : '判据未全部满足'}>
-          <MarkdownInline>{ok
+          <MarkdownBlock>{ok
             ? '$U_1$ 近似恒定且 $U_2$ 对时间近似线性：当前区间满足准稳态判据。'
-            : '$U_1$ 应近似恒定、$U_2$ 应近似线性。请调整 `τstart` / `τend`（候选区间仅供参考，由你确认）。'}</MarkdownInline>
+            : '$U_1$ 应近似恒定、$U_2$ 应近似线性。请调整 `τstart` / `τend`（候选区间仅供参考，由你确认）。'}</MarkdownBlock>
         </Notice>
       </div>
     </Panel>
@@ -117,16 +117,16 @@ export function MichelsonChecklistBlock() {
               />
               <span style={{ flex: 1, minWidth: 0 }}>
                 <MarkdownInline>{on ? `~~${item.label}~~` : item.label}</MarkdownInline>
-                <div className="small muted"><MarkdownInline>{item.tip}</MarkdownInline></div>
+                <div className="small muted"><MarkdownBlock>{item.tip}</MarkdownBlock></div>
               </span>
             </label>
           );
         })}
       </div>
-      <div className="small muted" style={{ marginTop: 8 }}><MarkdownInline>勾选状态仅存于当前会话，不写入项目数据。</MarkdownInline></div>
+      <div className="small muted" style={{ marginTop: 8 }}><MarkdownBlock>勾选状态仅存于当前会话，不写入项目数据。</MarkdownBlock></div>
       <div style={{ marginTop: 8 }}>
         <Notice variant="warning" title="安全要点">
-          <MarkdownInline>$\lambda = 2\Delta d/\Delta k$ 等计算见后续步骤；激光高压、钠灯高温、光学面与磁座操作安全提示常驻页面顶部。</MarkdownInline>
+          <MarkdownBlock>$\lambda = 2\Delta d/\Delta k$ 等计算见后续步骤；激光高压、钠灯高温、光学面与磁座操作安全提示常驻页面顶部。</MarkdownBlock>
         </Notice>
       </div>
     </Panel>

@@ -8,7 +8,7 @@ import { ExperimentDefinition, ExperimentComputation } from '../experiments/type
 import { StandardProfile } from '../standards/types';
 import { parseTable } from '../experiments/engine';
 import {
-  resultToMarkdown, tableToMarkdown, texSafe, stripTex,
+  resultToMarkdown, tableToMarkdown, texSafe, stripTex, markdownCell,
 } from './index';
 
 export interface ReportOptions {
@@ -41,7 +41,7 @@ export function buildFullReportMarkdown(
   lines.push('', '## 实验信息', '');
   lines.push('| 项目 | 内容 |', '|---|---|');
   lines.push(`| 实验名称 | ${experiment.title} |`);
-  for (const r of metaRows) lines.push(`| ${r.label} | ${r.value} |`);
+  for (const r of metaRows) lines.push(`| ${markdownCell(r.label)} | ${markdownCell(r.value)} |`);
   lines.push(`| 项目创建 | ${formatTime(project.createdAt)} |`);
   lines.push(`| 最近修改 | ${formatTime(project.updatedAt)} |`);
 
@@ -50,7 +50,7 @@ export function buildFullReportMarkdown(
   if (filledParams.length > 0) {
     lines.push('', '## 实验参数', '', '| 参数 | 数值 | 单位 |', '|---|---|---|');
     for (const p of filledParams) {
-      lines.push(`| ${p.label} | ${project.params[p.id]} | ${p.unit ?? ''} |`);
+      lines.push(`| ${markdownCell(p.label)} | ${markdownCell(project.params[p.id])} | ${markdownCell(p.unit ?? '')} |`);
     }
   }
 
@@ -75,7 +75,7 @@ export function buildFullReportMarkdown(
     const m = (tex: string) => (opts.mathStyle === 'dollar' ? `$$${tex}$$` : `\\[${tex}\\]`);
     lines.push('', '## 拟合结果');
     for (const f of fitEntries) {
-      lines.push('', `**${f.spec.title}**：${m(f.spec.modelLatex)}`);
+      lines.push('', `**${f.spec.title}**`, '', m(f.spec.modelLatex));
       if (f.ols) {
         lines.push('', `a = \`${f.ols.a.toPrecision(8)}\`，b = \`${f.ols.b.toPrecision(8)}\`，r = \`${f.ols.r.toPrecision(6)}\`（n=${f.ols.n}，ν=${f.ols.dof}，t=${f.ols.t.toPrecision(6)}）`);
         lines.push('', `Sa = \`${f.ols.sa.toPrecision(8)}\`，Sb = \`${f.ols.sb.toPrecision(8)}\`，Δa = \`${f.ols.deltaA.toPrecision(8)}\`，Δb = \`${f.ols.deltaB.toPrecision(8)}\``);
@@ -122,11 +122,12 @@ export function buildFullReportMarkdown(
 
 /** LaTeX 文本转义（数学段不走这里） */
 function texEscape(text: string): string {
-  return text
-    .replace(/\\/g, '\\textbackslash{}')
-    .replace(/([%&#_$])/g, '\\$1')
-    .replace(/~/g, '\\textasciitilde{}')
-    .replace(/\^/g, '\\textasciicircum{}');
+  const escapes: Record<string, string> = {
+    '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}',
+    '%': '\\%', '&': '\\&', '#': '\\#', '_': '\\_', '$': '\\$',
+    '~': '\\textasciitilde{}', '^': '\\textasciicircum{}',
+  };
+  return text.replace(/[\\{}%&#_$~^]/g, char => escapes[char]);
 }
 
 /** 数据表单元格文本转义（含 — 与单位原样） */
@@ -150,7 +151,7 @@ export function buildFullReportLatex(
     '\\usepackage{amsmath,amssymb,booktabs,geometry,longtable,array}',
     '\\geometry{margin=2.4cm}',
     `\\title{${texEscape(`实验报告：${experiment.title}`)}}`,
-    `\\author{${texEscape(experiment.metadataFields.map((f) => (project.metadata[f.id] ?? '').trim()).filter(Boolean).join(' \\quad ') || ' ')}}`,
+    `\\author{${texEscape(experiment.metadataFields.map((f) => (project.metadata[f.id] ?? '').trim()).filter(Boolean).join(' · ') || ' ')}}`,
     `\\date{${texEscape(new Date().toLocaleDateString('zh-CN'))}}`,
     '\\begin{document}',
     '\\maketitle',
@@ -242,6 +243,7 @@ export function buildFullReportLatex(
       if (s.formulaLatex) push('', `\\[${s.formulaLatex}\\]`);
       if (s.substitution) push('', `\\begin{quote}\\small\\ttfamily ${texEscape(s.substitution)}\\end{quote}`);
       if (s.unrounded) push(`未修约值：\\texttt{${texEscape(s.unrounded)}}`);
+      if (s.note) push(`说明：${texEscape(s.note)}`);
     }
     if (item.components && item.components.length > 0) {
       push('', '\\begin{tabular}{lrr}', '\\toprule', '分量 & 数值 & 贡献率 \\\\', '\\midrule');

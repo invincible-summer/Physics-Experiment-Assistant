@@ -65,9 +65,9 @@ export function UnitsPage() {
     <>
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>单位换算</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{'内部计算统一 SI，换算前做量纲检查，不相容即拒绝；摄氏温度区分**温度值**（含偏置）与**温差**（只缩放）两种语义。'}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{'内部计算统一 SI，换算前做量纲检查，不相容即拒绝；摄氏温度区分**温度值**（含偏置）与**温差**（只缩放）两种语义。'}</MarkdownBlock>
+        </div>
       </header>
 
       <div className="stack-lg" style={{ maxWidth: 620 }}>
@@ -108,7 +108,7 @@ export function UnitsPage() {
 
           {'error' in result && result.mismatch ? (
             <Notice variant="danger" title="量纲不相容">
-              <MarkdownInline>{result.error}</MarkdownInline>
+              <MarkdownBlock>{result.error}</MarkdownBlock>
             </Notice>
           ) : (
             <div className="result-final" style={{ marginTop: 6 }}>
@@ -128,13 +128,13 @@ export function UnitsPage() {
 
           {isTemp && !('error' in result) && (
             <Notice variant="info">
-              <MarkdownInline>{'℃ ↔ K 的温度值换算**含 273.15 偏置**；**温差换算只缩放、不偏置**（温差数值 ℃ 与 K 相同）。'}</MarkdownInline>
+              <MarkdownBlock>{'℃ ↔ K 的温度值换算**含 273.15 偏置**；**温差换算只缩放、不偏置**（温差数值 ℃ 与 K 相同）。'}</MarkdownBlock>
             </Notice>
           )}
 
           {showDimensionCheck && !('error' in result) && fromDef && toDef && (
             <div className="small muted" style={{ marginTop: 8 }}>
-              <MarkdownInline>{`量纲：${fromDef.zh}（${dimensionToString(fromDef.dim)}）→ ${toDef.zh}（${dimensionToString(toDef.dim)}）`}</MarkdownInline>
+              <MarkdownBlock>{`量纲：${fromDef.zh}（${dimensionToString(fromDef.dim)}）→ ${toDef.zh}（${dimensionToString(toDef.dim)}）`}</MarkdownBlock>
             </div>
           )}
         </Panel>

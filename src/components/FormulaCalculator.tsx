@@ -14,7 +14,7 @@ import { FormulaDefinition } from '../formulas/types';
 import { compileExpression, evaluateExpression } from '../core/expression';
 import { parseNumericText } from '../core/numeric';
 import { propagateUncertainty } from '../core/uncertainty';
-import { tryGetUnitDef, unitsOfFamily, convert } from '../core/quantity';
+import { tryGetUnitDef, unitsOfFamily, convert, convertDeltaTemperature, dimEqual } from '../core/quantity';
 import { formatMeasurement } from '../core/sigfig';
 import { ResultCard } from './ResultInspector';
 import { makeResult, ResultItem } from '../core/results';
@@ -22,11 +22,13 @@ import { Tex } from './katex';
 import { varSymbolTex } from './varSymbol';
 import { useSettings } from '../stores/settings';
 import { Badge, Button, CopyButton, Notice, toast } from './ui';
-import { MarkdownInline, MarkdownList } from './Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from './Markdown';
 import { DataGrid } from './DataGrid';
 import { buildFormulaProcessMarkdown, downloadTextFile } from '../export';
 
-interface VarState { raw: string; unit: string; uncRaw: string }
+import { useToolDraft } from '../features/tools/use-tool-draft';
+import { initialFormulaDraft, restoreFormulaDraft, type FormulaVarState as VarState } from '../formulas/draft';
+import { parseAggregateRows, aggregateValueText } from '../formulas/aggregate-input';
 
 interface FieldSpec {
   name: string;
@@ -37,25 +39,21 @@ interface FieldSpec {
   note?: string;
   isTarget: boolean;
   defaultBadge?: string;
+  quantityKind?: 'temperature-difference';
 }
 
 export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileName }: {
   formula: FormulaDefinition; resultSymbol: string; resultUnit: string; profileName: string;
 }) {
   const profile = useSettings((s) => s.activeProfile());
+  const profileKey = JSON.stringify(profile);
   const mathStyle = useSettings((s) => s.mathStyle);
-  const [target, setTarget] = useState<string>('__primary__');
-  const [vars, setVars] = useState<Record<string, VarState>>(() => {
-    const init: Record<string, VarState> = {};
-    for (const v of formula.variables) {
-      init[v.name] = {
-        raw: v.defaultValue !== undefined ? String(v.defaultValue) : '',
-        unit: v.unit,
-        uncRaw: '',
-      };
-    }
-    return init;
-  });
+  const [draft, setDraft] = useToolDraft(`formula.${formula.id}.v${formula.version}`,
+    initialFormulaDraft(formula), raw => restoreFormulaDraft(raw, formula));
+  const { target, vars, rows } = draft;
+  const setTarget = (target: string) => setDraft(previous => ({ ...previous, target }));
+  const setVars = (update: (vars: Record<string, VarState>) => Record<string, VarState>) =>
+    setDraft(previous => ({ ...previous, vars: update(previous.vars) }));
   const [computed, setComputed] = useState<ResultItem | null>(null);
 
   const targetVar = target === '__primary__' ? null : target;
@@ -93,13 +91,16 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
   // 输入值、单位、目标量（或修约标准）任一变化时清除上一次结果
   useEffect(() => {
     setComputed(null);
-  }, [vars, target, profile.name]);
+  }, [vars, target, profileKey]);
 
   const unitOptions = (unit: string): string[] => {
     if (!unit) return [];
     const def = tryGetUnitDef(unit);
     if (!def) return [unit];
-    return unitsOfFamily(def.family);
+    return unitsOfFamily(def.family).filter(candidate => {
+      const candidateDef = tryGetUnitDef(candidate);
+      return candidateDef && dimEqual(def.dim, candidateDef.dim);
+    });
   };
 
   const targets = useMemo(() => {
@@ -121,6 +122,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       labelTex: varSymbolTex(v.name),
       label: v.label,
       unit: v.unit,
+      quantityKind: v.quantityKind,
       note: v.note,
       isTarget: v.name === targetVar,
       defaultBadge: v.defaultValue !== undefined ? `默认 ${v.defaultValue}` : undefined,
@@ -154,8 +156,12 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       }
       if (st.unit !== spec.unit && st.unit && spec.unit) {
         try {
-          value = convert(value, st.unit, spec.unit);
-          if (uncertainty !== undefined) uncertainty = convert(uncertainty, st.unit, spec.unit);
+          value = spec.quantityKind === 'temperature-difference'
+            ? convertDeltaTemperature(value, st.unit, spec.unit)
+            : convert(value, st.unit, spec.unit);
+          if (uncertainty !== undefined) uncertainty = tryGetUnitDef(st.unit)?.isTemperatureScale || tryGetUnitDef(spec.unit)?.isTemperatureScale
+            ? convertDeltaTemperature(uncertainty, st.unit, spec.unit)
+            : convert(uncertainty, st.unit, spec.unit);
         } catch {
           unitErrors.push({
             name: spec.name,
@@ -179,12 +185,18 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       })
       .map((s) => s.name),
   );
-  const hasInvalid = invalidNames.size > 0;
+  const invalidUncertainty = new Set(requiredSpecs.filter((spec) => {
+    const raw = stateOf(spec.name, spec.unit).uncRaw.trim();
+    if (!raw || !formula.uncertainty?.propagatable) return false;
+    const parsed = parseNumericText(raw);
+    return !parsed.ok || parsed.value < 0;
+  }).map(spec => spec.name));
+  const hasInvalid = invalidNames.size > 0 || invalidUncertainty.size > 0;
   const unitErrorOf = (name: string) => collected.unitErrors.find((e) => e.name === name);
   const blocked = targetUnsupported || collected.unitErrors.length > 0;
 
   const compute = (): ResultItem | null => {
-    if (blocked) return null;
+    if (blocked || hasInvalid || !allFilled) return null;
     try {
       const scope: Record<string, number> = {};
       for (const c of formula.constants ?? []) scope[c.name] = c.value;
@@ -212,7 +224,8 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         });
       }
 
-      const withUnc = collected.inputs.filter((i) => i.uncertainty !== undefined && i.uncertainty > 0);
+      const withUnc = collected.inputs.filter((i) => i.uncertainty !== undefined);
+      const warnings: string[] = [];
       let propagation: ReturnType<typeof propagateUncertainty> | null = null;
       if (withUnc.length > 0 && formula.uncertainty?.propagatable) {
         try {
@@ -220,8 +233,14 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
             expressionSource,
             withUnc.map((i) => ({ symbol: i.name, value: i.value, uncertainty: i.uncertainty! })),
             profile.sigfig,
+            {},
+            scope,
           );
-        } catch { /* 传播失败不影响主结果 */ }
+          const missing = collected.inputs.filter(i => i.uncertainty === undefined);
+          if (missing.length) warnings.push(`以下输入未提供不确定度，当前传播未计入其贡献：${missing.map(i => i.name).join('、')}。结果仅包含已填写的分量。`);
+        } catch (error) {
+          warnings.push(`不确定度传播失败：${(error as Error).message}。下方仅为估计值，不能作为完整的不确定度结果。`);
+        }
       }
 
       const substitution = collected.inputs
@@ -233,11 +252,13 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         id: 'formula-result',
         title: formula.title,
         symbol: symbol,
-        unit: resultUnit,
+        unit: targetDef?.unit ?? resultUnit,
+        finalValue: value,
+        warnings,
         finalText: propagation ? formatted.text : formatNum(value),
         relativeText: propagation && propagation.relative ? `${(propagation.relative * 100).toPrecision(3)}%` : undefined,
         steps: [
-          { formulaLatex: formula.latex, substitution, unrounded: formatFull(value) },
+          { formulaLatex: targetVar ? `${symbol} = ${compileExpression(expressionSource).node.toTex()}` : formula.latex, substitution, unrounded: formatFull(value) },
         ],
         components: propagation?.terms
           .filter((t) => t.contribution > 0)
@@ -245,7 +266,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
             symbol: varSymbolTex(t.symbol), label: `灵敏度 $c=${formatFull(t.sensitivity)}$`,
             value: t.contribution, fraction: t.fraction,
           })),
-        roundingNote: formatted.roundingNote,
+        roundingNote: propagation ? formatted.roundingNote : '未完成不确定度评定；当前仅显示估计值，计算过程保留完整精度。',
         ruleNotes: [`${profile.name}：${profile.kind === 'gbt' ? 'GB/T 模式（$u$ 为标准不确定度）' : '课程模式（$\\Delta$ 为置信概率意义下的不确定度）'}`],
         provenance: formula.provenance,
       });
@@ -269,7 +290,13 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
   /** 完整过程 Markdown：公式 → 代入 → 未修约 → 修约 → 最终表达（AGENTS §12） */
   const buildProcessMarkdown = (): string => {
     if (!computed) return '';
-    return buildFormulaProcessMarkdown(formula, computed, { profileName, mathStyle });
+    return buildFormulaProcessMarkdown(formula, computed, { profileName, mathStyle,
+      inputs: requiredSpecs.map(spec => {
+        const state = stateOf(spec.name, spec.unit);
+        return { name: spec.name, rawText: state.raw, unit: state.unit, uncertaintyRaw: state.uncRaw,
+          convertedValue: collected.inputs.find(input => input.name === spec.name)?.value, convertedUnit: spec.unit };
+      }),
+    });
   };
 
   /** 列聚合派生值填回输入框（保留完整精度文本，不修约） */
@@ -278,7 +305,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       const next = { ...s };
       for (const [k, v] of Object.entries(values)) {
         const unit = formula.variables.find((x) => x.name === k)?.unit ?? '';
-        next[k] = { ...(next[k] ?? { raw: '', unit, uncRaw: '' }), raw: formatAggValue(v) };
+        next[k] = { ...(next[k] ?? { raw: '', unit, uncRaw: '' }), raw: aggregateValueText(v) };
       }
       return next;
     });
@@ -306,10 +333,11 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
           </Badge>
         )}
       </div>
+      <div className="field-help"><MarkdownInline>输入与数据列自动保存在此浏览器，刷新后可继续；恢复后请重新计算。</MarkdownInline></div>
       {targetUnsupported && (
         <div style={{ margin: '0 0 10px' }}>
           <Notice variant="danger" title="暂不支持该求解目标">
-            <MarkdownInline>{`该公式暂不支持解出 $${varSymbolTex(targetVar ?? '')}$，可换选其他目标量。`}</MarkdownInline>
+            <MarkdownBlock>{`该公式暂不支持解出 $${varSymbolTex(targetVar ?? '')}$，可换选其他目标量。`}</MarkdownBlock>
           </Notice>
         </div>
       )}
@@ -321,7 +349,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
         </div>
       )}
       {formula.aggregates && (
-        <AggregatePanel formula={formula} onFill={fillAggregates} />
+        <AggregatePanel formula={formula} rows={rows} onRowsChange={rows => setDraft(previous => ({ ...previous, rows }))} onFill={fillAggregates} />
       )}
       <div className="form-grid">
         {fieldSpecs.map((spec) => {
@@ -339,7 +367,7 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
               </div>
               {spec.isTarget ? (
                 <div className="field-help">
-                  <MarkdownInline>{'该量为**求解目标**，无需填写；由其余输入量解出。'}</MarkdownInline>
+                  <MarkdownBlock>{'该量为**求解目标**，无需填写；由其余输入量解出。'}</MarkdownBlock>
                 </div>
               ) : (
                 <>
@@ -368,15 +396,18 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
                   {!unitError && parseInvalid && (
                     <div className="field-error"><MarkdownInline>无法解析为数值</MarkdownInline></div>
                   )}
-                  {spec.note && <div className="field-help"><MarkdownInline>{spec.note}</MarkdownInline></div>}
+                  {spec.note && <div className="field-help"><MarkdownBlock>{spec.note}</MarkdownBlock></div>}
                   {showUnc && (
-                    <input
-                      className="input"
-                      placeholder={`不确定度 ±（${spec.unit || '同输入'}，可选）`}
+                    <><input
+                      className={`input${invalidUncertainty.has(spec.name) ? ' invalid' : ''}`}
+                      aria-invalid={invalidUncertainty.has(spec.name)}
+                      aria-label={`${spec.label}的不确定度`}
+                      placeholder={`不确定度 ±（${st.unit || '同输入'}，可选）`}
                       value={st.uncRaw}
                       inputMode="decimal"
                       onChange={(e) => patchVar(spec.name, spec.unit, { uncRaw: e.target.value })}
                     />
+                    {invalidUncertainty.has(spec.name) && <div className="field-error"><MarkdownInline>不确定度须为非负数；留空表示未提供。</MarkdownInline></div>}</>
                   )}
                 </>
               )}
@@ -386,12 +417,12 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
       </div>
       {(formula.constants ?? []).length > 0 && (
         <div className="small muted" style={{ marginTop: 8 }}>
-          <MarkdownInline>{`**常数：**${(formula.constants ?? []).map((c) => `${c.label} = ${c.value}${c.unit ? ` ${c.unit}` : ''}${c.isExact ? '（精确）' : ''}`).join('；')}`}</MarkdownInline>
+          <MarkdownBlock>{`**常数：**${(formula.constants ?? []).map((c) => `${c.label} = ${c.value}${c.unit ? ` ${c.unit}` : ''}${c.isExact ? '（精确）' : ''}`).join('；')}`}</MarkdownBlock>
         </div>
       )}
       {formula.conditions && (
         <div style={{ marginTop: 8 }}>
-          <Notice variant="info"><MarkdownInline>{formula.conditions}</MarkdownInline></Notice>
+          <Notice variant="info"><MarkdownBlock>{formula.conditions}</MarkdownBlock></Notice>
         </div>
       )}
       <div className="row" style={{ margin: '12px 0' }}>
@@ -425,72 +456,50 @@ export function FormulaCalculator({ formula, resultSymbol, resultUnit, profileNa
 }
 
 /** 列聚合输入面板：粘贴原始数据列 → 派生公式变量（如 S、n），拒绝让用户手工求和 */
-function AggregatePanel({ formula, onFill }: {
+function AggregatePanel({ formula, rows, onRowsChange, onFill }: {
   formula: FormulaDefinition;
+  rows: string[][];
+  onRowsChange: (rows: string[][]) => void;
   onFill: (values: Record<string, number>) => void;
 }) {
   const agg = formula.aggregates!;
-  const [rows, setRows] = useState<string[][]>(() =>
-    Array.from({ length: 8 }, () => agg.columns.map(() => '')));
-
-  /** 逐行配对解析：任一列空缺/非法则整行跳过（不篡改输入） */
-  const parsedCols = useMemo(() => {
-    const cols: number[][] = agg.columns.map(() => []);
-    for (const row of rows) {
-      const cells: number[] = [];
-      let ok = true;
-      agg.columns.forEach((_, j) => {
-        const raw = (row[j] ?? '').trim();
-        if (raw === '') { ok = false; return; }
-        const p = parseNumericText(raw);
-        if (!p.ok) { ok = false; return; }
-        cells.push(p.value);
-      });
-      if (ok) cells.forEach((v, j) => cols[j].push(v));
-    }
-    return cols;
-  }, [rows, agg]);
+  const parsed = useMemo(() => parseAggregateRows(rows, agg.columns.length), [rows, agg.columns.length]);
 
   const derived = useMemo(() => {
     try {
-      return agg.derive(parsedCols);
+      return agg.derive(parsed.columns);
     } catch {
       return null;
     }
-  }, [agg, parsedCols]);
+  }, [agg, parsed.columns]);
 
   return (
     <details className="fold agg-panel" open>
       <summary><MarkdownInline>{`从数据列自动计算（不必手工求和）`}</MarkdownInline></summary>
       <div className="fold-body">
-        <div className="small muted" style={{ margin: '2px 0 8px' }}><MarkdownInline>{agg.note}</MarkdownInline></div>
+        <div className="small muted" style={{ margin: '2px 0 8px' }}><MarkdownBlock>{agg.note}</MarkdownBlock></div>
         <DataGrid
           columns={agg.columns.map((c) => ({ id: c.id, header: c.label }))}
           rows={rows}
-          onChange={setRows}
+          onChange={onRowsChange}
           defaultRows={8}
           hint="从 Excel 粘贴整列；空缺或非法行自动跳过，不参与派生"
         />
+        <div className="field-help"><MarkdownInline>{`参与计算 ${parsed.valid} 行；空行 ${parsed.empty} 行；非空但不完整或非法 ${parsed.skipped} 行。`}</MarkdownInline></div>
+        {parsed.skipped > 0 && <Notice variant="warning" title="部分数据未参与计算">请检查上方非空但不完整或非法的数据行；当前派生值仅基于完整有效行。</Notice>}
         {derived ? (
           <div className="row" style={{ marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
             {Object.entries(derived).map(([k, v]) => (
-              <Badge key={k} variant="info">{`${k} = ${formatAggValue(v)}`}</Badge>
+              <Badge key={k} variant="info">{`${k} = ${aggregateValueText(v)}`}</Badge>
             ))}
             <Button size="sm" variant="primary" icon="arrow-right" onClick={() => onFill(derived)}>填入输入框</Button>
           </div>
         ) : (
-          <div className="small muted" style={{ marginTop: 8 }}><MarkdownInline>有效数据行不足，继续输入后此处自动给出派生值</MarkdownInline></div>
+          <div className="small muted" style={{ marginTop: 8 }}><MarkdownBlock>有效数据行不足，继续输入后此处自动给出派生值</MarkdownBlock></div>
         )}
       </div>
     </details>
   );
-}
-
-/** 派生值 → 输入框文本：整数原样，其余保留 12 位有效数字（完整精度，不修约语义） */
-function formatAggValue(v: number): string {
-  if (!Number.isFinite(v)) return String(v);
-  if (Number.isInteger(v)) return String(v);
-  return String(Number(v.toPrecision(12)));
 }
 
 function formatNum(v: number): string {

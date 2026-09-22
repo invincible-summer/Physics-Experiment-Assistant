@@ -99,17 +99,19 @@ test('绘图工作台：表达式出图 + 轴范围 + 导出按钮', async ({ pa
   await page.goto('/#/tools/plotter');
   await expect(page.getByRole('heading', { name: '绘图工作台' })).toBeVisible();
   // 添加表达式 y=x^2，取样 [0,10]
+  await page.getByRole('button', { name: '函数曲线', exact: true }).click();
   await page.getByRole('button', { name: '添加表达式' }).click();
   await page.getByLabel('表达式 y=f(x)').fill('x^2');
   // 图渲染（ECharts SVG）
-  await expect(page.locator('.panel svg').first()).toBeVisible();
+  await expect(page.getByRole('img', { name: /对.*图/ }).locator('svg')).toBeVisible();
   // 导出按钮存在
   await expect(page.getByRole('button', { name: '导出 SVG' })).toBeVisible();
   await expect(page.getByRole('button', { name: '导出 CSV' })).toBeVisible();
   // 横轴起点设置后仍然正常渲染
+  await page.getByRole('button', { name: '图名与坐标', exact: true }).click();
   await page.getByLabel('横轴起点').fill('0');
   await page.getByLabel('横轴终点').fill('10');
-  await expect(page.locator('.panel svg').first()).toBeVisible();
+  await expect(page.getByRole('img', { name: /对.*图/ }).locator('svg')).toBeVisible();
 });
 
 test('主题三态切换作用于文档根', async ({ page }) => {

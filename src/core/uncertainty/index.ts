@@ -283,10 +283,16 @@ export function propagateUncertainty(
   inputs: PropagationInput[],
   sigfigOpts: SigFigOptions,
   symbolMap: Record<string, string> = {},
+  fixedScope: Record<string, number> = {},
 ): PropagationResult {
   const compiled = compileExpression(expressionSource);
-  const scope: Record<string, number> = {};
-  for (const inp of inputs) scope[inp.symbol] = inp.value;
+  const scope: Record<string, number> = { ...fixedScope };
+  for (const inp of inputs) {
+    if (!Number.isFinite(inp.value) || !Number.isFinite(inp.uncertainty) || inp.uncertainty < 0) {
+      throw new Error(`变量 ${inp.symbol} 的估计值必须有限，不确定度必须为有限非负数`);
+    }
+    scope[inp.symbol] = inp.value;
+  }
   const value = evaluateExpression(compiled, scope);
 
   const terms: PropagationTerm[] = [];
@@ -312,6 +318,7 @@ export function propagateUncertainty(
     });
   }
   const combined = Math.sqrt(sumSq);
+  if (!Number.isFinite(combined)) throw new Error("传播结果超出可计算范围，请检查输入数量级");
   for (const t of terms) {
     t.fraction = combined > 0 ? (t.contribution * t.contribution) / sumSq : 0;
   }

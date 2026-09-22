@@ -15,7 +15,7 @@ export function NavItem({ item, collapsed = false }: { item: NavItemDef; collaps
     >
       <Icon name={item.icon} />
       <span className="nav-item-text">
-        <MarkdownInline allowLinks={false}>{item.label}</MarkdownInline>
+        <MarkdownInline allowLinks={false}>{collapsed ? item.compactLabel : item.label}</MarkdownInline>
       </span>
     </NavLink>
   );

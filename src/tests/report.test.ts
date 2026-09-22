@@ -1,5 +1,7 @@
 /** 完整实验报告导出测试：Markdown 与 LaTeX 的关键节与内容完整性 */
 import { describe, expect, it } from 'vitest';
+import { resultToMarkdown } from '../export';
+import { makeResult } from '../core/results';
 import { buildFullReportLatex, buildFullReportMarkdown } from '../export/report';
 import { getExperiment } from '../experiments';
 import { getProfile } from '../standards/registry';
@@ -99,4 +101,24 @@ describe('buildFullReportLatex', () => {
     expect(tex).not.toContain('±');
     expect(tex).toContain('张三');
   });
+});
+
+
+it('escapes user metadata in Markdown tables and LaTeX text', () => {
+  const project = makeProject();
+  const experiment = getExperiment('friction')!;
+  const profile = getProfile('tsinghua-a1-2026');
+  project.metadata[experiment.metadataFields[0].id] = 'A|B {组}_50%\\name';
+  const computation = experiment.compute({ params: project.params, tables: project.tables, excludedRows: project.excludedRows }, profile);
+  const md = buildFullReportMarkdown(project, experiment, computation, profile, { mathStyle: 'dollar' });
+  expect(md).toContain(String.raw`A\|B {组}_50%\\name`);
+  const tex = buildFullReportLatex(project, experiment, computation, profile);
+  expect(tex).toContain(String.raw`A|B \{组\}\_50\%\textbackslash{}name`);
+  expect(tex).not.toContain(String.raw`\textbackslash{}quad`);
+});
+
+it('exports final equations as standalone Markdown math blocks', () => {
+  const md = resultToMarkdown(makeResult({ id: 'test', title: '结果', symbol: 'x', finalText: '1.00', unit: 'm' }), 'dollar');
+  expect(md).toContain('最终结果：\n\n$$');
+  expect(md).not.toContain('最终结果：$$');
 });

@@ -10,6 +10,8 @@ export interface VariableDefinition {
   unit: string;
   /** 单位族（UI 下拉；空字符串为无量纲） */
   unitFamily?: string;
+  /** 温差只缩放，绝对温度采用温标偏移。 */
+  quantityKind?: 'temperature-difference';
   /** 物理约束说明 */
   constraint?: string;
   note?: string;

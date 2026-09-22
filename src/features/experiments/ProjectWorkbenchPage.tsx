@@ -1,3 +1,4 @@
+import { ReportPreview } from '../../components/ReportPreview';
 /**
  * ProjectWorkbenchPage — 实验工作台三栏布局（plan §4.2）。
  * 步骤导航（StepNav） | 主工作区（数据表/图/表单） | 唯一可折叠结果检查器。
@@ -231,7 +232,7 @@ export function ProjectWorkbenchPage() {
                       {field.unit && <span className="unit-chip"><MarkdownInline>{field.unit}</MarkdownInline></span>}
                     </div>
                     {field.instrumentErrorNote && (
-                      <div className="field-help" style={{ color: 'var(--warning)' }}><MarkdownInline>{field.instrumentErrorNote}</MarkdownInline></div>
+                      <div className="field-help" style={{ color: 'var(--warning)' }}><MarkdownBlock>{field.instrumentErrorNote}</MarkdownBlock></div>
                     )}
                   </Field>
                 );
@@ -276,7 +277,7 @@ export function ProjectWorkbenchPage() {
                 return (
                   <Panel key={fid} title={spec?.title ?? fid}>
                     <Notice variant="warning">
-                      <MarkdownInline>{fit && 'error' in fit ? fit.error : '数据不足或存在非法输入'}</MarkdownInline>
+                      <MarkdownBlock>{fit && 'error' in fit ? fit.error : '数据不足或存在非法输入'}</MarkdownBlock>
                     </Notice>
                   </Panel>
                 );
@@ -330,10 +331,10 @@ export function ProjectWorkbenchPage() {
                   ) : null}
                   {courseText && (
                     <div className="small" style={{ marginTop: 8 }}>
-                      <MarkdownInline>{`**课程修约表达：**${courseText}`}</MarkdownInline>
+                      <MarkdownBlock>{`**课程修约表达：**${courseText}`}</MarkdownBlock>
                     </div>
                   )}
-                  <div className="small muted" style={{ marginTop: 6 }}><MarkdownInline>课程模式首先显示 $r$；$R^2$ 为工程扩展指标。</MarkdownInline></div>
+                  <div className="small muted" style={{ marginTop: 6 }}><MarkdownBlock>课程模式首先显示 $r$；$R^2$ 为工程扩展指标。</MarkdownBlock></div>
                 </Panel>
               );
             })}
@@ -434,11 +435,11 @@ export function ProjectWorkbenchPage() {
   const mdExport = computation
     ? buildDataProcessingMarkdown(project, experiment, computation, profile, settings.mathStyle)
     : '';
-  const reportMd = computation
-    ? buildFullReportMarkdown(project, experiment, computation, profile, { mathStyle: settings.mathStyle })
+  const reportMd = exportOpen && computation
+    ? buildFullReportMarkdown(project, experiment, computation, profile, { mathStyle: settings.mathStyle, latexUnitStyle: settings.latexUnitStyle })
     : '';
-  const reportTex = computation
-    ? buildFullReportLatex(project, experiment, computation, profile)
+  const reportTex = exportOpen && computation
+    ? buildFullReportLatex(project, experiment, computation, profile, { latexUnitStyle: settings.latexUnitStyle })
     : '';
 
   const saveLabel =
@@ -583,11 +584,11 @@ export function ProjectWorkbenchPage() {
                     <div className="stack" style={{ gap: 4 }}>
                       {[...project.auditLog].reverse().slice(0, 50).map((entry, i) => (
                         <div key={i} className="small muted">
-                          <MarkdownInline>{`**${entry.action}**${entry.detail ? ` — ${entry.detail}` : ''}（${formatAuditTime(entry.at)}）`}</MarkdownInline>
+                          <MarkdownBlock>{`**${entry.action}**${entry.detail ? ` — ${entry.detail}` : ''}（${formatAuditTime(entry.at)}）`}</MarkdownBlock>
                         </div>
                       ))}
                       {project.auditLog.length > 50 && (
-                        <div className="small faint"><MarkdownInline>仅显示最近 50 条</MarkdownInline></div>
+                        <div className="small faint"><MarkdownBlock>仅显示最近 50 条</MarkdownBlock></div>
                       )}
                     </div>
                   </div>
@@ -617,8 +618,8 @@ export function ProjectWorkbenchPage() {
                 <CopyButton text={() => reportMd} label="复制完整报告" />
                 <Button size="sm" onClick={() => download(new Blob([reportMd], { type: 'text/markdown' }), `${project.title}-实验报告.md`)}>下载 .md</Button>
               </div>
-              <div className="small muted"><MarkdownInline>含实验信息、参数、数据表、拟合、全部计算过程、规则摘要、诊断与审计日志；主观结论由实验者补充。</MarkdownInline></div>
-              <pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 12 }}>{reportMd.slice(0, 4000)}{reportMd.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
+              <div className="small muted"><MarkdownBlock>含实验信息、参数、数据表、拟合、全部计算过程、规则摘要、诊断与审计日志；主观结论由实验者补充。</MarkdownBlock></div>
+              <ReportPreview key="reportMd" source={reportMd} format="markdown" />
             </>
           )}
           {exportTab === 'report-latex' && (
@@ -627,8 +628,8 @@ export function ProjectWorkbenchPage() {
                 <CopyButton text={() => reportTex} label="复制 LaTeX 源码" />
                 <Button size="sm" onClick={() => download(new Blob([reportTex], { type: 'text/x-tex' }), `${project.title}-实验报告.tex`)}>下载 .tex</Button>
               </div>
-              <div className="small muted"><MarkdownInline>{'完整可编译文档（ctexart + booktabs，建议 XeLaTeX 编译）；单位样式跟随设置（`\\mathrm{}` / `\\text{}`）。'}</MarkdownInline></div>
-              <pre style={{ maxHeight: 300, overflow: 'auto', fontSize: 12 }}>{reportTex.slice(0, 4000)}{reportTex.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
+              <div className="small muted"><MarkdownBlock>{'完整可编译文档（ctexart + booktabs，建议 XeLaTeX 编译）；单位样式跟随设置（`\\mathrm{}` / `\\text{}`）。'}</MarkdownBlock></div>
+              <ReportPreview key="reportTex" source={reportTex} format="latex" />
             </>
           )}
           {exportTab === 'md' && (
@@ -637,7 +638,7 @@ export function ProjectWorkbenchPage() {
                 <CopyButton text={() => mdExport} label="复制 Markdown" />
                 <Button size="sm" onClick={() => download(new Blob([mdExport], { type: 'text/markdown' }), `${project.title}-数据处理.md`)}>下载 .md</Button>
               </div>
-              <pre style={{ maxHeight: 260, overflow: 'auto', fontSize: 12 }}>{mdExport.slice(0, 4000)}{mdExport.length > 4000 ? '\n…（完整内容请下载）' : ''}</pre>
+              <ReportPreview key="mdExport" source={mdExport} format="markdown" />
             </>
           )}
           {exportTab === 'data' && (
@@ -655,7 +656,7 @@ export function ProjectWorkbenchPage() {
                   onClick={() => download(new Blob([serializeProject(project)], { type: 'application/json' }), `${project.title}.json`)}
                 >项目 JSON</Button>
               </div>
-              <div className="small muted"><MarkdownInline>导出附带标准 `profile`、公式来源、修约规则与软件版本（Markdown 首部已包含）。</MarkdownInline></div>
+              <div className="small muted"><MarkdownBlock>导出附带标准 `profile`、公式来源、修约规则与软件版本（Markdown 首部已包含）。</MarkdownBlock></div>
             </>
           )}
         </div>

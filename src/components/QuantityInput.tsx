@@ -2,7 +2,7 @@
 import { ReactNode, useMemo } from 'react';
 import { parseNumericText } from '../core/numeric';
 import { tryGetUnitDef, unitsOfFamily, sameDimension } from '../core/quantity';
-import { MarkdownInline, markdownInlineNode } from './Markdown';
+import { MarkdownBlock, MarkdownInline, markdownInlineNode } from './Markdown';
 
 export interface QuantityInputProps {
   label?: ReactNode;
@@ -48,7 +48,7 @@ export function QuantityInput({ label, value, onChange, unit, onUnitChange, unit
         ) : null}
       </div>
       {invalid && <div className="field-error"><MarkdownInline>{parsed.error ?? '数值格式不正确'}</MarkdownInline></div>}
-      {!invalid && hint && <div className="field-help"><MarkdownInline>{hint}</MarkdownInline></div>}
+      {!invalid && hint && <div className="field-help"><MarkdownBlock>{hint}</MarkdownBlock></div>}
       {extra}
     </div>
   );

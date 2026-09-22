@@ -5,7 +5,7 @@ import { Tex } from './katex';
 import { varSymbolTex } from './varSymbol';
 import { copyText } from './clipboard';
 import { Badge, Button, Menu, SourceBadge, toast } from './ui';
-import { MarkdownInline } from './Markdown';
+import { MarkdownBlock, MarkdownInline } from './Markdown';
 
 export function FormulaCard({ formula }: { formula: FormulaDefinition }) {
   const navigate = useNavigate();
@@ -31,7 +31,7 @@ export function FormulaCard({ formula }: { formula: FormulaDefinition }) {
         <Tex tex={formula.latex} display />
       </div>
       {formula.conditions && (
-        <div className="small muted"><MarkdownInline>{`**适用条件：**${formula.conditions}`}</MarkdownInline></div>
+        <div className="small muted"><MarkdownBlock>{`**适用条件：**${formula.conditions}`}</MarkdownBlock></div>
       )}
       <div className="fc-vars">
         {formula.variables.map((v) => (
@@ -53,7 +53,7 @@ export function FormulaCard({ formula }: { formula: FormulaDefinition }) {
           onSelect={(id) => {
             const make = copySources[id];
             if (!make) return;
-            void copyText(make()).then(() => toast('已复制到剪贴板'));
+            void copyText(make()).then(() => toast('已复制到剪贴板')).catch(() => toast('复制失败，请打开公式详情后选择内容手动复制'));
           }}
         />
       </div>

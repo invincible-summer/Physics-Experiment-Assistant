@@ -48,7 +48,7 @@
 .is-collapsed .app-sidebar {
   width: var(--sidebar-w-collapsed);
 }
-/* 收起态纵向堆叠 brand 与收起按钮，避免 76px 宽度内溢出重叠 */
+/* 紧凑导航仍保留可读标签 */
 .is-collapsed .sidebar-brand-row {
   flex-direction: column;
   align-items: center;
@@ -67,9 +67,10 @@
 
 .sidebar-brand-row {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 12px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 18px 16px 12px;
 }
 .brand {
   display: flex;
@@ -190,14 +191,16 @@
 .is-collapsed .nav-item {
   justify-content: center;
   padding: 9px 4px;
-  gap: 0;
+  gap: 4px;
+  flex-direction: column;
+  font-size: 12px;
 }
 .is-collapsed .nav-item .icon {
   width: 19px;
   height: 19px;
 }
 .is-collapsed .nav-item-text {
-  display: none;
+  display: block;
 }
 
 .sidebar-footer {
@@ -802,3 +805,42 @@ li.step-attention .step-num {
     padding: 6px 12px;
   }
 }
+
+/* 绘图工作区：预览获得更大空间，窄屏保持完整表格宽度。 */
+.plot-workflow { padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-raised); gap: 18px; flex-wrap: wrap; }
+.plot-workflow > .btn { margin-left: auto; }
+.plot-workspace { display: grid; grid-template-columns: minmax(340px, 0.85fr) minmax(0, 1.35fr); gap: 20px; align-items: start; }
+.plot-workspace > * { min-width: 0; }
+.plot-workspace > .stack:last-child { position: sticky; top: 20px; }
+.plot-workspace.plot-focus { grid-template-columns: minmax(0, 1fr); }
+.plot-focus > .stack:first-child { display: none; }
+.plot-presets { flex-wrap: wrap; gap: 8px; padding-bottom: 16px; }
+.plot-toolbar { flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
+.plot-annotations { font-size: var(--fs-xs); color: var(--ink-2); overflow-wrap: anywhere; }
+.tool-search { max-width: 780px; align-items: end; gap: 16px; }
+@media (max-width: 1200px) {
+  .plot-workspace { grid-template-columns: minmax(0, 1fr); }
+  .plot-workspace > .stack:last-child { position: static; }
+}
+@media (max-width: 600px) {
+  .plot-workflow { gap: 10px; font-size: var(--fs-xs); }
+  .plot-workflow > span { width: 100%; }
+  .plot-workflow > .btn { margin-left: 0; }
+  .tool-search { flex-wrap: wrap; }
+}
+
+.plot-editor-nav { flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper-raised); }
+.plot-editor-hidden { display: none; }
+.plot-workspace .field .row > .input { flex: 1; min-width: 0; width: 0; }
+
+.sidebar-profile { min-width: 0; width: 100%; }
+.sidebar-profile .badge { white-space: normal; line-height: 1.6; }
+.is-collapsed .sidebar-profile .badge { font-size: 10px; padding: 4px; }
+.sidebar-toggle { min-height: 30px; }
+.sidebar-footer { flex-shrink: 0; }
+.sidebar-content { min-height: 0; scrollbar-width: thin; }
+.is-collapsed .sidebar-theme { flex-direction: column; gap: 3px; padding: 4px; font-size: 11px; }
+.sidebar-profile .badge { overflow-wrap: anywhere; }
+
+/* Grid children must shrink before long formula blocks start scrolling. */
+.tool-layout > * { min-width: 0; }

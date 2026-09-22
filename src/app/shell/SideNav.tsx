@@ -46,7 +46,7 @@ export function SideNav() {
           title={collapsed ? '展开主导航' : '收起主导航'}
         >
           <Icon name="panel-left" size={14} />
-          {!collapsed && <MarkdownInline allowLinks={false}>收起</MarkdownInline>}
+          <MarkdownInline allowLinks={false}>{collapsed ? '展开' : '收起导航'}</MarkdownInline>
         </button>
       </div>
 

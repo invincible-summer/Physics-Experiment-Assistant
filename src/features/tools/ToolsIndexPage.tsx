@@ -1,7 +1,8 @@
 /** 数据处理工具枢纽页（/tools）：七个工具的入口卡 + 数据流转说明 */
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Icon, IconName } from '../../components/Icon';
-import { Panel } from '../../components/ui';
+import { Button, EmptyState, Panel } from '../../components/ui';
 import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { useSettings } from '../../stores/settings';
 
@@ -37,14 +38,14 @@ const TOOLS: ReadonlyArray<{ to: string; title: string; desc: string; icon: Icon
   {
     to: '/tools/plotter',
     title: '绘图工作台',
-    desc: '表格数据与 y=f(x) 表达式混合成图，支持多系列、坐标起点与对数轴配置，导出 SVG / PNG / CSV。',
+    desc: 'MATLAB 式画图：叠加表格数据与函数曲线，缩放查看、配置网格与对数坐标，导出 SVG / PNG / CSV。',
     icon: 'chart',
     tags: '多系列 · 表达式 · 轴范围',
   },
   {
     to: '/tools/calculator',
     title: '科学计算器',
-    desc: '安全 AST 求值（无 eval），支持幂、开方、三角函数（角度/弧度）、科学记数法与历史记录。',
+    desc: '支持幂、开方、三角函数（角度/弧度）、科学记数法与历史记录。',
     icon: 'calculator',
     tags: '即时计算',
   },
@@ -58,18 +59,29 @@ const TOOLS: ReadonlyArray<{ to: string; title: string; desc: string; icon: Icon
 ];
 
 export function ToolsIndexPage() {
+  const [query, setQuery] = useState('');
+  const filtered = TOOLS.filter(t => `${t.title} ${t.desc} ${t.tags}`.toLowerCase().includes(query.trim().toLowerCase()));
   const profile = useSettings((s) => s.activeProfile());
   return (
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>数据处理工具</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{`表格化录入（支持 Excel 粘贴与 CSV 导入），计算规则跟随当前标准：**${profile.shortName}**。输入草稿自动保存在本浏览器。`}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{`表格化录入（支持 Excel 粘贴与 CSV 导入），计算规则跟随当前标准：**${profile.shortName}**。输入草稿自动保存在本浏览器。`}</MarkdownBlock>
+        </div>
       </header>
 
+      <div className="tool-search row">
+        <label className="field" style={{ flex: 1 }}>
+          <span className="field-label"><MarkdownInline>现在想处理什么？</MarkdownInline></span>
+          <input className="input" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="搜索工具或任务，例如：拟合、单位、画图" />
+        </label>
+        <span className="small muted" role="status"><MarkdownInline>{`${filtered.length} 个工具`}</MarkdownInline></span>
+        {query && <Button size="sm" onClick={() => setQuery('')}>清除搜索</Button>}
+      </div>
+      {filtered.length === 0 && <EmptyState title="没有找到匹配工具" hint="试试“统计”“绘图”或“单位”，也可以清除搜索查看全部工具。" />}
       <nav className="quick-grid" aria-label="工具列表">
-        {TOOLS.map((t) => (
+        {filtered.map((t) => (
           <Link key={t.to} className="quick-card" to={t.to}>
             <span className="quick-card-head">
               <span className="quick-card-icon"><Icon name={t.icon} /></span>

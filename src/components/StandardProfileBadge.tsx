@@ -18,7 +18,7 @@ export function StandardProfileBadge({ clickable = true, compact = false }: {
   if (!clickable) return el;
   return (
     <button
-      style={{ all: 'unset', cursor: 'pointer', borderRadius: 999 }}
+      className="profile-switch"
       onClick={() => navigate('/settings')}
       title="前往设置切换标准配置"
       aria-label={`当前标准 ${profile.name}，前往设置切换`}

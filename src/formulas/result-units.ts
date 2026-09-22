@@ -12,7 +12,7 @@ export const RESULT_UNITS: Record<string, string> = {
   'weight-from-mass': 'N', capstan: 'N',
   // 霍尔
   'hall-voltage': 'V', 'hall-four-direction-combination': 'V', 'hall-coefficient': 'm3/C',
-  'hall-sensitivity': 'm3/C', 'carrier-density': 'm-3', magnetoresistance: '',
+  'hall-sensitivity': 'm2/C', 'carrier-density': 'm-3', magnetoresistance: '',
   // 热学
   'fourier-law': 'W/m2', 'quasi-steady-lambda': 'W/(m·K)', 'quasi-steady-specific-heat': 'J/(kg·K)',
   'heat-flux-electrical': 'W/m2', 'thermocouple-linear': 'K',

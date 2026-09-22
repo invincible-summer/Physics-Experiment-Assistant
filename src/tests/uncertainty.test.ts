@@ -227,3 +227,22 @@ describe('golden: GB/T 矩形分布扩展不确定度报告', () => {
     expect(U).toBeCloseTo(0.04898979, 8);
   });
 });
+
+describe('部分分量传播与完整求值上下文', () => {
+  it('其余变量和常量参与求值，独立分量保持原有课程/标准语义', () => {
+    for (const profile of [TSINGHUA_A1_2026, GBT_27418_2017]) {
+      const result = propagateUncertainty('k*x*y', [{ symbol: 'x', value: 2, uncertainty: 0.1 }], profile.sigfig, {}, { k: 3, y: 4 });
+      expect(result.value).toBe(24);
+      expect(result.combined).toBeCloseTo(1.2, 12);
+      expect(result.terms[0].sensitivity).toBe(12);
+    }
+  });
+  it('拒绝负数、非有限不确定度及溢出的传播结果', () => {
+    for (const uncertainty of [-1, NaN, Infinity, 1e308]) {
+      expect(() => propagateUncertainty('2*x', [{ symbol: 'x', value: 1, uncertainty }], TSINGHUA_A1_2026.sigfig)).toThrow();
+    }
+  });
+  it('缺失求值变量必须明确失败', () => {
+    expect(() => propagateUncertainty('x*y', [{ symbol: 'x', value: 1, uncertainty: 0.1 }], TSINGHUA_A1_2026.sigfig)).toThrow(/未赋值/);
+  });
+});

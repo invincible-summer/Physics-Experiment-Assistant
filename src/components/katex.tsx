@@ -1,25 +1,24 @@
 /** KaTeX 渲染组件：保留可访问文本（AGENTS.md §12） */
-import { useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
 export function Tex({ tex, display = false }: { tex: string; display?: boolean }) {
-  const html = useMemo(() => {
+  const host = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!host.current) return;
     try {
-      return katex.renderToString(tex, {
+      katex.render(tex, host.current, {
         displayMode: display,
         throwOnError: false,
+        trust: false,
         output: 'htmlAndMathml',
       });
     } catch {
-      return `<span class="muted">${escapeHtml(tex)}</span>`;
+      host.current.textContent = tex;
     }
   }, [tex, display]);
-  return <span dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return <span className={display ? 'tex tex-display' : 'tex tex-inline'} ref={host}>{tex}</span>;
 }
 
 /** 单位排版：\mathrm{} 风格 */

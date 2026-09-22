@@ -11,7 +11,7 @@ import { compileExpression, evaluateExpression } from '../core/expression';
 import { Tex } from './katex';
 import { Icon } from './Icon';
 import { Button, ConfirmButton, Field, Menu, Modal, toast } from './ui';
-import { MarkdownInline } from './Markdown';
+import { MarkdownBlock, MarkdownInline } from './Markdown';
 import { GridHistory, cloneRows } from './grid-history';
 
 export interface GridColumn {
@@ -291,7 +291,7 @@ export function DataGrid({
   return (
     <div>
       {title && <div className="panel-title" style={{ marginBottom: 2 }}><MarkdownInline>{title}</MarkdownInline></div>}
-      {hint && <div className="panel-sub" style={{ marginBottom: 8 }}><MarkdownInline>{hint}</MarkdownInline></div>}
+      {hint && <div className="panel-sub" style={{ marginBottom: 8 }}><MarkdownBlock>{hint}</MarkdownBlock></div>}
       <div className="grid-toolbar">
         <Button size="sm" icon="plus" onClick={() => addRow()}>添加一行</Button>
         <Button size="sm" onClick={() => {
@@ -443,7 +443,7 @@ export function DataGrid({
             )}
           </div>
           <div className="small muted">
-            <MarkdownInline>{batchMode === 'fill' ? '按 `起始值 + 行号 × 步长` 填充现有全部行；常用于序号列、时间列。' : '清空该列全部单元格（其他列不受影响；可用撤销恢复）。'}</MarkdownInline>
+            <MarkdownBlock>{batchMode === 'fill' ? '按 `起始值 + 行号 × 步长` 填充现有全部行；常用于序号列、时间列。' : '清空该列全部单元格（其他列不受影响；可用撤销恢复）。'}</MarkdownBlock>
           </div>
           <div className="row-right">
             <Button variant="ghost" onClick={() => setBatchOpen(false)}>取消</Button>

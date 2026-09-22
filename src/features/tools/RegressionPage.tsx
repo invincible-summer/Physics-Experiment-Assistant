@@ -11,7 +11,7 @@ import { PhysicsPlot, PlotChecklist, PlotSeries } from '../../components/Physics
 import { Tex } from '../../components/katex';
 import { makeResult, ResultItem } from '../../core/results';
 import { ResultCard } from '../../components/ResultInspector';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 import { DataGrid, GridColumn } from '../../components/DataGrid';
 import { useToolDraft } from './use-tool-draft';
 import { PayloadBanner } from './PayloadBanner';
@@ -276,9 +276,9 @@ export function RegressionPage() {
     <>
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>线性拟合</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{`成对数据 + 拟合选项 → $a$ / $b$ / $r$ / $S_a$ / $S_b$ / 置信区间 / 残差诊断（当前标准：**${profile.shortName}**）`}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{`成对数据 + 拟合选项 → $a$ / $b$ / $r$ / $S_a$ / $S_b$ / 置信区间 / 残差诊断（当前标准：**${profile.shortName}**）`}</MarkdownBlock>
+        </div>
       </header>
 
       <PayloadBanner
@@ -338,14 +338,14 @@ export function RegressionPage() {
             {mode === 'weighted' && (
               <div style={{ marginTop: 8 }}>
                 <Notice variant="info">
-                  <MarkdownInline>权重列通常取 $w_i = 1/u_i^2$（独立测量假设）；所有权重必须为正，缺失或非法权重将按等权处理并警告。加权线性拟合属于**通用扩展**，不是上传课程讲义的必修公式。</MarkdownInline>
+                  <MarkdownBlock>权重列通常取 $w_i = 1/u_i^2$（独立测量假设）；所有权重必须为正，缺失或非法权重将按等权处理并警告。加权线性拟合属于**通用扩展**，不是上传课程讲义的必修公式。</MarkdownBlock>
                 </Notice>
               </div>
             )}
             {analysis && 'error' in analysis && (
               <div style={{ marginTop: 8 }}>
                 <Notice variant="danger" title="拟合失败">
-                  <MarkdownInline>{analysis.error}</MarkdownInline>
+                  <MarkdownBlock>{analysis.error}</MarkdownBlock>
                 </Notice>
               </div>
             )}
@@ -418,7 +418,7 @@ export function RegressionPage() {
 
           {(mode === 'ols' || mode === 'weighted') && (
             <Notice variant="info" title="OLS 模型假设">
-              <MarkdownInline>最小二乘假设 **$x$ 的误差可忽略**、不确定度全部集中在 $y$。若 $x$ 列来自仪器读数且其误差相对 $y$ 不可忽略，斜率估计会有偏；v1 暂未支持正交回归（ODR），请在报告中注明该假设。</MarkdownInline>
+              <MarkdownBlock>最小二乘假设 **$x$ 的误差可忽略**、不确定度全部集中在 $y$。若 $x$ 列来自仪器读数且其误差相对 $y$ 不可忽略，斜率估计会有偏；v1 暂未支持正交回归（ODR），请在报告中注明该假设。</MarkdownBlock>
             </Notice>
           )}
 
@@ -430,11 +430,11 @@ export function RegressionPage() {
               <Tex tex="\Delta_b = t_{0.95}(n{-}2)\,S_b,\qquad \Delta_a = t_{0.95}(n{-}2)\,S_a" display />
               {fitOk && 'r' in fitOk.fit && (
                 <div className="small muted">
-                  <MarkdownInline>{`交叉验证：课程式 $S_b$ = ${fmtDisplay(fitOk.fit.sbCourse)}，规范式 $S/\\sqrt{S_{xx}}$ = ${fmtDisplay(fitOk.fit.sb)}，两者一致。`}</MarkdownInline>
+                  <MarkdownBlock>{`交叉验证：课程式 $S_b$ = ${fmtDisplay(fitOk.fit.sbCourse)}，规范式 $S/\\sqrt{S_{xx}}$ = ${fmtDisplay(fitOk.fit.sb)}，两者一致。`}</MarkdownBlock>
                 </div>
               )}
               <div className="small muted">
-                <MarkdownInline>过原点拟合自由度为 $\nu = n-1$；加权拟合无课程原式，按通用加权最小二乘处理。</MarkdownInline>
+                <MarkdownBlock>过原点拟合自由度为 $\nu = n-1$；加权拟合无课程原式，按通用加权最小二乘处理。</MarkdownBlock>
               </div>
             </div>
           </Panel>

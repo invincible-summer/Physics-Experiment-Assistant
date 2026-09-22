@@ -9,7 +9,7 @@ import {
 } from '../../components/ui';
 import { clearAllProjects, importProjectJson } from '../../persistence/db';
 import { Tex } from '../../components/katex';
-import { MarkdownInline, MarkdownList } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 
 const KIND_META: Record<ProfileKind, { label: string; variant: BadgeVariant }> = {
   course: { label: '课程模式', variant: 'accent' },
@@ -66,9 +66,9 @@ export function SettingsPage() {
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>设置</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{'标准配置、外观、数值与有效数字规则、图表导出与本地数据管理。课程模式与 GB/T 27418-2017 模式严格隔离，禁止混算（`AGENTS.md §3`）。'}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{'标准配置、外观、数值与有效数字规则、图表导出与本地数据管理。课程模式与 GB/T 27418-2017 模式严格隔离，禁止混算。'}</MarkdownBlock>
+        </div>
       </header>
 
       <Panel
@@ -121,7 +121,7 @@ export function SettingsPage() {
               {customActive && <Badge variant="success">当前</Badge>}
             </label>
             <div className="small muted" style={{ marginTop: 6 }}>
-              <MarkdownInline>由显式参数组成，禁止隐式继承相互矛盾的规则；不代表课程或 GB/T 标准。</MarkdownInline>
+              <MarkdownBlock>由显式参数组成，禁止隐式继承相互矛盾的规则；不代表课程或 GB/T 标准。</MarkdownBlock>
             </div>
             <div className="form-grid" style={{ marginTop: 10 }}>
               <Field label="包含概率 $P$" hint="A 类 $t$ 因子对应的置信概率">
@@ -187,14 +187,14 @@ export function SettingsPage() {
             {conflict && (
               <div style={{ marginTop: 10 }}>
                 <Notice variant="danger" title="规则混算警告">
-                  <MarkdownInline>{'此组合把 $t$ 因子化的 A 类与标准不确定度形式的 B 类混算，与 GB/T 27418-2017 相悖（`AGENTS.md §3`）。除非你明确知道自己在做什么，否则请关闭「A 类乘 $t$ 因子」或改用误差限 B 类。'}</MarkdownInline>
+                  <MarkdownBlock>{'此组合把 $t$ 因子化的 A 类与标准不确定度形式的 B 类混算，与 GB/T 27418-2017 相悖。请核对自定义配置：关闭「A 类乘 $t$ 因子」或改用误差限 B 类。'}</MarkdownBlock>
                 </Notice>
               </div>
             )}
           </div>
         </div>
         <div className="small muted" style={{ marginTop: 12 }}>
-          <MarkdownInline>{`**当前生效：** ${profile.name}（${profile.shortName}） · 合成记号 $${texOf(profile.notation.combined)}$ · B 类 ${profile.bType.mode === 'instrument-limit' ? '取仪器误差限 $\\Delta_B = \\Delta_{仪}$' : '按分布换算为标准不确定度'}`}</MarkdownInline>
+          <MarkdownBlock>{`**当前生效：** ${profile.name}（${profile.shortName}） · 合成记号 $${texOf(profile.notation.combined)}$ · B 类 ${profile.bType.mode === 'instrument-limit' ? '取仪器误差限 $\\Delta_B = \\Delta_{仪}$' : '按分布换算为标准不确定度'}`}</MarkdownBlock>
         </div>
       </Panel>
 
@@ -209,9 +209,9 @@ export function SettingsPage() {
         </Field>
       </Panel>
 
-      <Panel title="数值与有效数字" icon="calculator" sub="中间计算永远保留全精度，仅显示与导出时修约（`AGENTS.md §4.2/§4.5`）">
+      <Panel title="数值与有效数字" icon="calculator" sub="中间计算保留完整精度，只在显示和导出最终结果时修约">
         <div className="form-grid">
-          <Field label="最终不确定度有效数字" hint="选择「由标准配置决定」时，局部组件不得覆盖（`plan.md §3.2`）">
+          <Field label="最终不确定度有效数字" hint="选择「由标准配置决定」后，结果统一遵循当前标准的有效数字规则">
             <select
               className="select"
               value={String(settings.uncertaintyDigitsOverride)}
@@ -242,7 +242,7 @@ export function SettingsPage() {
           </Field>
         </div>
         <div className="small muted" style={{ marginTop: 10 }}>
-          <MarkdownInline>修约策略集中在 `core/sigfig`；有效数字只作用于显示与最终导出，不作用于计算链上游。</MarkdownInline>
+          <MarkdownBlock>修约策略集中在 `core/sigfig`；有效数字只作用于显示与最终导出，不作用于计算链上游。</MarkdownBlock>
         </div>
       </Panel>
 
@@ -262,7 +262,7 @@ export function SettingsPage() {
           </label>
         </div>
         <div className="small muted" style={{ marginTop: 10 }}>
-          <MarkdownInline>摄氏温度与温差分别处理（温度转换含偏置，温差只缩放）；维度不相容时拒绝计算（`AGENTS.md §7`）。</MarkdownInline>
+          <MarkdownBlock>摄氏温度与温差分别处理（温度转换含偏置，温差只缩放）；维度不相容时拒绝计算（`AGENTS.md §7`）。</MarkdownBlock>
         </div>
       </Panel>
 
@@ -337,7 +337,7 @@ export function SettingsPage() {
 
       <Panel title="数据与隐私" icon="folder" sub="实验数据不上传任何服务器">
         <Notice variant="info">
-          <MarkdownInline>{'**数据默认仅保存在本浏览器（IndexedDB）**；轻量偏好保存在 localStorage。清空浏览器站点数据会删除全部项目。'}</MarkdownInline>
+          <MarkdownBlock>{'**项目和偏好仅保存在当前浏览器，不会上传。**\n\n清空浏览器站点数据会删除项目。请先使用「导出全部项目 JSON」备份；在其他浏览器或设备上，可通过「导入项目 JSON」恢复。'}</MarkdownBlock>
         </Notice>
         <div className="check-list" style={{ marginTop: 10 }}>
           <label className={`check-item${settings.autosave ? ' checked' : ''}`}>
@@ -346,7 +346,7 @@ export function SettingsPage() {
               checked={settings.autosave}
               onChange={(e) => settings.set('autosave', e.target.checked)}
             />
-            <span className="small"><MarkdownInline>自动保存（编辑即写入 IndexedDB）</MarkdownInline></span>
+            <span className="small"><MarkdownInline>自动保存（编辑后保存在本浏览器）</MarkdownInline></span>
           </label>
         </div>
         <div className="row" style={{ marginTop: 10 }}>
@@ -389,7 +389,7 @@ export function SettingsPage() {
           )}
         </div>
         <div className="small muted" style={{ marginTop: 8 }}>
-          <MarkdownInline>导入支持：单项目信封、「导出全部」归档（逐条校验，坏条目跳过并计数）与旧版裸数据；项目页也可直接导入。</MarkdownInline>
+          <MarkdownBlock>导入支持：单项目信封、「导出全部」归档（逐条校验，坏条目跳过并计数）与旧版裸数据；项目页也可直接导入。</MarkdownBlock>
         </div>
       </Panel>
 
@@ -422,7 +422,7 @@ export function SettingsPage() {
               toast('已恢复全部默认设置');
             }}
           >恢复全部默认设置</ConfirmButton>
-          <span className="small muted"><MarkdownInline>{'重置后立即生效并写入 localStorage；标准配置回到默认的 `tsinghua-a1-2026`。'}</MarkdownInline></span>
+          <span className="small muted"><MarkdownInline>{'重置后立即生效，标准配置恢复为 **2026 秋物理实验 A(1)**；已保存的项目保留。'}</MarkdownInline></span>
         </div>
       </Panel>
 
@@ -440,7 +440,7 @@ export function SettingsPage() {
             <div className="field-label"><MarkdownInline>规则摘要（全量）</MarkdownInline></div>
             <MarkdownList items={profile.rulesSummary} />
           </div>
-          <div className="small muted"><MarkdownInline>{`**规则来源：** ${profile.source}`}</MarkdownInline></div>
+          <div className="small muted"><MarkdownBlock>{`**规则来源：** ${profile.source}`}</MarkdownBlock></div>
         </div>
       </Modal>
     </div>

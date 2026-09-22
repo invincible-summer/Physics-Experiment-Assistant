@@ -38,9 +38,9 @@ export function FormulasPage() {
     <>
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>公式工作台</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{`当前标准：**${profileName}** · 每条公式标注来源状态，课程规则与通用扩展严格区分`}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{`当前标准：**${profileName}** · 每条公式标注来源状态，课程规则与通用扩展严格区分`}</MarkdownBlock>
+        </div>
       </header>
       <div className="stack">
         <div className="search-input">
@@ -67,9 +67,9 @@ export function FormulasPage() {
             {results.map((f) => <FormulaCard key={f.id} formula={f} />)}
           </div>
         )}
-        <p className="small muted">
-          <MarkdownInline>{`共 ${results.length} 个公式（全库 ${total} 个）· 卡片角标为来源状态，含义见 [关于与规则](#/sources)`}</MarkdownInline>
-        </p>
+        <div className="small muted">
+          <MarkdownBlock>{`共 ${results.length} 个公式（全库 ${total} 个）· 卡片角标为来源状态，含义见 [关于与规则](#/sources)`}</MarkdownBlock>
+        </div>
       </div>
     </>
   );
@@ -120,9 +120,9 @@ export function FormulaDetailPage() {
             <Button variant="ghost" size="sm" onClick={() => navigate('/formulas')}>返回列表</Button>
           </div>
         </div>
-        <p className="page-lead">
-          <MarkdownInline>{`当前标准：**${profileName}** · 版本 v${formula.version} · 编号 \`${formula.id}\``}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{`当前标准：**${profileName}** · 版本 v${formula.version} · 编号 \`${formula.id}\``}</MarkdownBlock>
+        </div>
       </header>
       <div className="stack-lg">
         <FormulaBlock latex={formula.latex} />
@@ -185,11 +185,11 @@ export function FormulaDetailPage() {
               <Badge>{`v${formula.version}`}</Badge>
             </div>
             {provenanceText && (
-              <p className="small muted"><MarkdownInline>{provenanceText}</MarkdownInline></p>
+              <div className="small muted"><MarkdownBlock>{provenanceText}</MarkdownBlock></div>
             )}
-            <p className="small faint">
-              <MarkdownInline>{'来源状态的判定口径见 [关于与规则](#/sources)。'}</MarkdownInline>
-            </p>
+            <div className="small faint">
+              <MarkdownBlock>{'来源状态的判定口径见 [关于与规则](#/sources)。'}</MarkdownBlock>
+            </div>
           </div>
         </Panel>
       </div>

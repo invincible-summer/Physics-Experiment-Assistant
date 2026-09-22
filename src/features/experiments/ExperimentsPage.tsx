@@ -5,7 +5,7 @@ import { listExperiments, getExperiment } from '../../experiments';
 import { createProject } from '../../persistence/db';
 import { useSettings } from '../../stores/settings';
 import { Badge, Button, EmptyState, Field, Notice, Panel, SafetyNotice, SourceBadge, toast } from '../../components/ui';
-import { MarkdownInline } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline } from '../../components/Markdown';
 
 export function ExperimentsPage() {
   const navigate = useNavigate();
@@ -15,9 +15,9 @@ export function ExperimentsPage() {
     <>
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>实验工作台</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{'2026 秋物理实验 A(1) 的 **7 个必做实验**：从原始数据记录、数据修正、拟合作图到不确定度与结果表达的完整流程。选择实验新建项目，全部数据仅保存在本浏览器。'}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{'2026 秋物理实验 A(1) 的 **7 个必做实验**：从原始数据记录、数据修正、拟合作图到不确定度与结果表达的完整流程。选择实验新建项目，全部数据仅保存在本浏览器。'}</MarkdownBlock>
+        </div>
       </header>
       <div className="card-grid">
         {experiments.map((exp) => (
@@ -113,9 +113,9 @@ export function NewExperimentProjectPage() {
               {experiment.reportType === 'full' ? '完整报告' : '简要报告'}
             </Badge>
           </div>
-          <p className="small muted" style={{ margin: '10px 0 0' }}>
-            <MarkdownInline>{`共 **${experiment.steps.length}** 个步骤 · 项目数据仅保存在本浏览器，不会上传`}</MarkdownInline>
-          </p>
+          <div className="small muted" style={{ margin: '10px 0 0' }}>
+            <MarkdownBlock>{`共 **${experiment.steps.length}** 个步骤 · 项目数据仅保存在本浏览器，不会上传`}</MarkdownBlock>
+          </div>
         </Panel>
         <SafetyNotice items={experiment.safety} />
         <Panel title="项目设置">
@@ -130,7 +130,7 @@ export function NewExperimentProjectPage() {
               />
             </Field>
             <Notice variant="info" title="当前标准配置">
-              <MarkdownInline>{`**${profile.name}**（\`${profileId}\`）。项目按创建时的标准配置计算，创建后仍可在工作台中切换。`}</MarkdownInline>
+              <MarkdownBlock>{`**${profile.name}**（\`${profileId}\`）。项目按创建时的标准配置计算，创建后仍可在工作台中切换。`}</MarkdownBlock>
             </Notice>
             <div className="row">
               <Button variant="primary" onClick={create} disabled={creating}>

@@ -12,7 +12,7 @@ import {
   Badge, Button, ConfirmButton, EmptyState, Field, Menu, Modal, Notice, Panel, toast,
 } from '../../components/ui';
 import { Icon } from '../../components/Icon';
-import { MarkdownInline, MarkdownList } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 
 type SortBy = 'updated' | 'created' | 'name';
 
@@ -37,12 +37,14 @@ export function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState('');
+  const [experimentFilter, setExperimentFilter] = useState('all');
   const [sortBy, setSortBy] = useState<SortBy>('updated');
   const [renaming, setRenaming] = useState<StoredProject | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const refresh = () => {
+    setLoading(true);
     listProjects()
       .then((all) => { setProjects(all); setLoadError(false); })
       .catch(() => setLoadError(true))
@@ -53,19 +55,25 @@ export function ProjectsPage() {
   /** 搜索（标题/实验名）+ 排序后的可见列表 */
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const candidates = projects.filter(p => experimentFilter === 'all' || (p.experimentId ?? 'free') === experimentFilter);
     const filtered = q
-      ? projects.filter((p) => {
+      ? candidates.filter((p) => {
         const exp = p.experimentId ? getExperiment(p.experimentId) : undefined;
         return p.title.toLowerCase().includes(q) || (exp?.title ?? '').toLowerCase().includes(q);
       })
-      : [...projects];
+      : [...candidates];
     filtered.sort((a, b) => {
       if (sortBy === 'name') return a.title.localeCompare(b.title, 'zh-CN');
       const key = sortBy === 'created' ? 'createdAt' : 'updatedAt';
       return a[key] < b[key] ? 1 : -1;
     });
     return filtered;
-  }, [projects, query, sortBy]);
+  }, [projects, query, sortBy, experimentFilter]);
+
+  const experiments = [...new Set(projects.map(p => p.experimentId ?? 'free'))];
+  const latest = [...projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const filtered = query.trim() !== '' || experimentFilter !== 'all';
+  const clearFilters = () => { setQuery(''); setExperimentFilter('all'); };
 
   const exportAll = () => {
     download(
@@ -93,7 +101,7 @@ export function ProjectsPage() {
     if (!renaming) return;
     const title = renameTitle.trim();
     if (!title) return;
-    await saveProject({ ...renaming, title });
+    try { await saveProject({ ...renaming, title }); } catch { toast('重命名未保存，请重试。'); return; }
     setRenaming(null);
     toast(`已重命名为「${title}」`);
     refresh();
@@ -110,15 +118,26 @@ export function ProjectsPage() {
   };
 
   return (
-    <div className="stack-lg">
+    <div className="stack-lg projects-page">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>我的项目</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{'项目数据只保存在本浏览器（IndexedDB），不会上传；`schemaVersion` 当前为 v1，导入旧版本项目时自动迁移并提示。'}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{'集中管理实验记录，随时继续录入和导出报告。数据保存在当前浏览器；换设备前，请先导出备份。'}</MarkdownBlock>
+        </div>
       </header>
 
-      <div className="row">
+      {!loading && !loadError && latest && (
+        <section className="project-resume" aria-label="继续最近项目">
+          <div className="project-resume-icon"><Icon name="folder" size={26} /></div>
+          <div className="project-resume-copy">
+            <div className="small muted"><MarkdownInline>继续最近更新的记录</MarkdownInline></div>
+            <h2><MarkdownInline>{latest.title}</MarkdownInline></h2>
+            <div className="small muted"><MarkdownInline>{getExperiment(latest.experimentId ?? '')?.title ?? '自由项目'}</MarkdownInline></div>
+          </div>
+          <Link className="btn btn-primary" to={`/project/${latest.id}`}><MarkdownInline allowLinks={false}>继续实验</MarkdownInline><Icon name="arrow-right" size={16} /></Link>
+        </section>
+      )}
+      <div className="project-actions">
         <Button variant="primary" icon="plus" onClick={() => navigate('/experiments')}>新建实验项目</Button>
         <Button icon="upload" onClick={() => fileRef.current?.click()}>导入项目 JSON</Button>
         <input
@@ -129,12 +148,13 @@ export function ProjectsPage() {
           style={{ display: 'none' }}
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) void onImportFile(file);
+            if (file) void onImportFile(file).catch(() => toast('导入失败，请检查文件是否可读取以及浏览器存储是否可用。'));
             e.target.value = '';
           }}
         />
         <Button icon="download" onClick={exportAll} disabled={projects.length === 0}>导出全部项目 JSON</Button>
-        <span className="spacer" />
+      </div>
+      <div className="project-filters" role="search" aria-label="筛选项目">
         <div className="search-input">
           <Icon name="search" size={16} />
           <input
@@ -146,6 +166,10 @@ export function ProjectsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        <select className="select" aria-label="按实验筛选" value={experimentFilter} onChange={e => setExperimentFilter(e.target.value)}>
+          <option value="all">全部实验</option>
+          {experiments.map(id => <option key={id} value={id}>{getExperiment(id)?.title ?? '自由项目'}</option>)}
+        </select>
         <select
           className="select"
           aria-label="项目排序方式"
@@ -158,22 +182,26 @@ export function ProjectsPage() {
         </select>
       </div>
 
+      {!loading && !loadError && projects.length > 0 && <div className="project-filter-status" role="status">
+        <MarkdownInline>{`显示 ${visible.length} / ${projects.length} 个项目`}</MarkdownInline>
+        {filtered && <Button size="sm" variant="ghost" onClick={clearFilters}>清除筛选</Button>}
+      </div>}
       {loading ? (
-        <p className="muted small"><MarkdownInline>正在读取本地项目…</MarkdownInline></p>
+        <div className="muted small"><MarkdownBlock>正在读取本地项目…</MarkdownBlock></div>
       ) : loadError ? (
-        <Notice variant="danger" title="读取失败">
-          <MarkdownInline>本地项目列表读取失败，请刷新页面重试；数据仍保存在浏览器 IndexedDB 中。</MarkdownInline>
+        <Notice variant="danger" title="读取失败" actions={<Button onClick={refresh}>重新读取</Button>}>
+          <MarkdownBlock>本地项目列表读取失败，请刷新页面重试；数据仍保存在浏览器 IndexedDB 中。</MarkdownBlock>
         </Notice>
       ) : projects.length === 0 ? (
         <EmptyState icon="folder" title="还没有项目" hint="到实验工作台新建第一份实验记录，数据只保存在本浏览器。">
           <Button variant="primary" onClick={() => navigate('/experiments')}>去实验工作台新建</Button>
         </EmptyState>
       ) : visible.length === 0 ? (
-        <EmptyState icon="search" title="没有匹配的项目" hint="换个关键词试试；搜索匹配项目标题与实验名。" />
+        <EmptyState icon="search" title="没有匹配的项目" hint="试试其他关键词或实验分类，也可以恢复全部项目。"><Button onClick={clearFilters}>显示全部项目</Button></EmptyState>
       ) : (
         <Panel
           title="项目列表"
-          sub={query.trim() ? `匹配 ${visible.length} / ${projects.length} 个项目` : `共 ${projects.length} 个项目`}
+          sub="录入进度仅统计已填写单元格，计算结果请进入项目查看。"
         >
           <div>
             {visible.map((p) => {
@@ -205,7 +233,7 @@ export function ProjectsPage() {
                     )}
                     {p.auditLog.length > 0 && (
                       <details className="fold" style={{ marginTop: 6 }}>
-                        <summary><MarkdownInline>{`审计日志（${p.auditLog.length} 条）`}</MarkdownInline></summary>
+                        <summary><MarkdownInline>{`操作记录（${p.auditLog.length} 条）`}</MarkdownInline></summary>
                         <div className="fold-body">
                           <MarkdownList
                             className="mono small"
@@ -216,7 +244,7 @@ export function ProjectsPage() {
                       </details>
                     )}
                   </div>
-                  <div className="row-nowrap">
+                  <div className="project-row-actions">
                     <Link to={`/project/${p.id}`} className="btn btn-sm">
                       <MarkdownInline allowLinks={false}>打开</MarkdownInline>
                     </Link>
@@ -233,7 +261,7 @@ export function ProjectsPage() {
                           setRenaming(p);
                           setRenameTitle(p.title);
                         } else if (id === 'duplicate') {
-                          void onDuplicate(p);
+                          void onDuplicate(p).catch(() => toast('复制失败，原项目仍然保留，请重试。'));
                         } else if (id === 'export') {
                           download(new Blob([serializeProject(p)], { type: 'application/json' }), `${p.title}.json`);
                         }
@@ -243,7 +271,7 @@ export function ProjectsPage() {
                       variant="danger"
                       size="sm"
                       question={`删除项目「${p.title}」？此操作不可恢复。`}
-                      onConfirm={async () => { await deleteProject(p.id); refresh(); }}
+                      onConfirm={async () => { try { await deleteProject(p.id); refresh(); } catch { toast('删除失败，请重试。'); } }}
                     >删除</ConfirmButton>
                   </div>
                 </div>

@@ -119,9 +119,9 @@ export function WeightedMeanPage() {
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>加权平均</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{'两列数据：$x$ 与不确定度 $u$（或手动权重 $w$），计算加权平均'}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{'两列数据：$x$ 与不确定度 $u$（或手动权重 $w$），计算加权平均'}</MarkdownBlock>
+        </div>
       </header>
 
       <Notice variant="info">
@@ -180,7 +180,7 @@ export function WeightedMeanPage() {
         </div>
         <div className="stack">
           {result && 'error' in result ? (
-            <Notice variant="danger"><MarkdownInline>{result.error}</MarkdownInline></Notice>
+            <Notice variant="danger"><MarkdownBlock>{result.error}</MarkdownBlock></Notice>
           ) : resultItem ? (
             <Panel
               title="结果"

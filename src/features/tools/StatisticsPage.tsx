@@ -120,9 +120,9 @@ export function StatisticsPage() {
     <div className="stack-lg">
       <header className="page-head">
         <h1 className="page-title"><MarkdownInline>快速统计</MarkdownInline></h1>
-        <p className="page-lead">
-          <MarkdownInline>{`表格录入一列测量值（可从 Excel 粘贴），得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownInline>
-        </p>
+        <div className="page-lead">
+          <MarkdownBlock>{`表格录入一列测量值（可从 Excel 粘贴），得到统计量与当前标准（**${profileName}**）下的直接测量不确定度`}</MarkdownBlock>
+        </div>
       </header>
 
       <PayloadBanner
@@ -199,7 +199,7 @@ export function StatisticsPage() {
           </Panel>
           <Panel title={`不确定度（${profileName}）`}>
             {uncertaintyResult && 'error' in uncertaintyResult ? (
-              <Notice variant="danger"><MarkdownInline>{uncertaintyResult.error}</MarkdownInline></Notice>
+              <Notice variant="danger"><MarkdownBlock>{uncertaintyResult.error}</MarkdownBlock></Notice>
             ) : resultItem ? (
               <ResultCard item={resultItem} profileName={profileName} />
             ) : (

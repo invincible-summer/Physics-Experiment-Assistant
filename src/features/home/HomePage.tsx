@@ -7,7 +7,7 @@ import { useSettings } from '../../stores/settings';
 import { Icon, IconName } from '../../components/Icon';
 import { Panel, Notice, EmptyState, Button } from '../../components/ui';
 import { StandardProfileBadge } from '../../components/StandardProfileBadge';
-import { MarkdownInline, MarkdownList } from '../../components/Markdown';
+import { MarkdownBlock, MarkdownInline, MarkdownList } from '../../components/Markdown';
 
 const QUICK_LINKS: ReadonlyArray<{ to: string; title: string; desc: string; icon: IconName }> = [
   {
@@ -31,7 +31,7 @@ const QUICK_LINKS: ReadonlyArray<{ to: string; title: string; desc: string; icon
   {
     to: '/tools/calculator',
     title: '科学计算器',
-    desc: '安全 AST 求值，支持角度/弧度切换与科学记数法，不执行任意脚本。',
+    desc: '支持角度/弧度切换、科学记数法和历史重算，随手核对实验中的数值。',
     icon: 'calculator',
   },
 ];
@@ -94,9 +94,9 @@ export function HomePage() {
       <section className="home-hero">
         <div className="home-eyebrow"><MarkdownInline>大学物理实验 · 2026 A(1)</MarkdownInline></div>
         <h1 className="home-title"><MarkdownInline>物理实验小助手</MarkdownInline></h1>
-        <p className="home-lead">
-          <MarkdownInline>从原始数据记录到规范结果表达：数据修正、派生量计算、拟合作图、不确定度与有效数字在同一个工作区完成，计算链与规则来源全程可追溯。</MarkdownInline>
-        </p>
+        <div className="home-lead">
+          <MarkdownBlock>从原始数据记录到规范结果表达：数据修正、派生量计算、拟合作图、不确定度与有效数字在同一个工作区完成，计算链与规则来源全程可追溯。</MarkdownBlock>
+        </div>
         <div className="row" style={{ marginTop: 12 }}>
           <StandardProfileBadge />
           <span className="muted small"><MarkdownInline>全部计算在本浏览器内运行，数据不会上传。</MarkdownInline></span>
@@ -104,7 +104,7 @@ export function HomePage() {
         {profile.kind === 'custom' && (
           <div style={{ marginTop: 12 }}>
             <Notice variant="warning" title="自定义标准配置生效中">
-              <MarkdownInline>当前为自定义规则组合，**不代表课程或 GB/T 标准的官方口径**；如需课程或标准模式，请到设置页切换。</MarkdownInline>
+              <MarkdownBlock>当前为自定义规则组合，**不代表课程或 GB/T 标准的官方口径**；如需课程或标准模式，请到设置页切换。</MarkdownBlock>
             </Notice>
           </div>
         )}
@@ -193,10 +193,10 @@ export function HomePage() {
           actions={<Link to="/projects" className="btn btn-sm"><MarkdownInline allowLinks={false}>全部项目</MarkdownInline></Link>}
         >
           {loading ? (
-            <p className="muted small"><MarkdownInline>正在读取本地项目…</MarkdownInline></p>
+            <div className="muted small"><MarkdownBlock>正在读取本地项目…</MarkdownBlock></div>
           ) : loadError ? (
             <Notice variant="danger" title="读取失败">
-              <MarkdownInline>本地项目列表读取失败，请刷新页面重试；数据仍保存在浏览器 IndexedDB 中。</MarkdownInline>
+              <MarkdownBlock>本地项目列表读取失败，请刷新页面重试；数据仍保存在浏览器 IndexedDB 中。</MarkdownBlock>
             </Notice>
           ) : recent.length === 0 ? (
             <EmptyState
